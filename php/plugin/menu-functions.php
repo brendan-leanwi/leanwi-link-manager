@@ -35,6 +35,27 @@ function leanwi_lm_add_admin_menu() {
         __NAMESPACE__ . '\\leanwi_lm_manager_links_page'          // Callback function to display link management page
     );
 
+    // Sub-menu: "Add Link"
+    add_submenu_page(
+        'leanwi-link-manager-main',
+        'Add Link',
+        'Add Link',
+        'manage_options',
+        'leanwi-lm-add-link',
+        __NAMESPACE__ . '\\leanwi_lm_add_link_page'
+    );
+
+    // Sub-menu: "Edit Link"
+    add_submenu_page(
+        'leanwi-link-manager-main', // Parent slug
+        'Edit Link',                // Page title
+        'Edit Link',                // Menu title (hidden later via CSS if desired)
+        'manage_options',           // Capability
+        'leanwi-lm-edit-link',      // Menu slug
+        __NAMESPACE__ . '\\leanwi_lm_edit_link_page' // Callback function
+    );
+
+
     // Sub-menu: "Program Areas"
     add_submenu_page(
         'leanwi-link-manager-main',    // Parent slug
@@ -134,6 +155,8 @@ add_action('admin_menu', __NAMESPACE__ . '\\leanwi_lm_add_admin_menu');
 // Hide the Add and Edit pages submenus from the left-hand navigation menu using CSS
 function leanwi_hide_add_edit_submenus_css() {
     echo '<style>
+        #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-add-link"],
+        #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-edit-link"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-add-program-area"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-edit-program-area"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-add-format"],
@@ -191,10 +214,534 @@ function leanwi_lm_main_page() {
  * Manage Links
  **************************************************************************************************/
 
-// Function to display the list of venues
+// Function to display the table of links
 function leanwi_lm_manager_links_page() {
-    
+    global $wpdb;
+    $links_table = $wpdb->prefix . 'leanwi_lm_links';
+    $areas_table = $wpdb->prefix . 'leanwi_lm_program_area';
+    $formats_table = $wpdb->prefix . 'leanwi_lm_formats';
+    $tags_table = $wpdb->prefix . 'leanwi_lm_tags';
+    $linktags_table = $wpdb->prefix . 'leanwi_lm_linktags';
+
+    // Handle deletion if delete_link is set
+    if (isset($_GET['delete_link'])) {
+        $link_id = intval($_GET['delete_link']);
+        $wpdb->delete($links_table, ['link_id' => $link_id], ['%d']);
+        echo '<div class="updated"><p>Link deleted successfully.</p></div>';
+    }
+
+    // Fetch Program Areas and Formats for dropdowns
+    $areas = $wpdb->get_results("SELECT area_id, name FROM $areas_table ORDER BY name ASC", ARRAY_A);
+    $formats = $wpdb->get_results("SELECT format_id, name FROM $formats_table ORDER BY name ASC", ARRAY_A);
+    $tags = $wpdb->get_results("SELECT tag_id, name FROM $tags_table ORDER BY name ASC", ARRAY_A);
+
+    // Build filters form
+    echo '<div class="wrap">';
+    echo '<h1>Manage Links</h1>';
+    echo '<a href="' . admin_url('admin.php?page=leanwi-lm-add-link') . '" class="button button-primary">Add New Link</a>';
+
+    echo '<div style="margin-top:20px; margin-bottom:20px; padding:15px; border:1px solid #ccc; background:#f9f9f9; border-radius:5px;">';
+    echo '<h2>Add Link Filters</h2>';
+
+    echo '<form method="GET">';
+
+    // Keep necessary GET params for WordPress routing
+    echo '<input type="hidden" name="page" value="leanwi-lm-manage-links">';
+
+    echo '<table class="form-table"><tbody>';
+
+    // Date Range
+    echo '<tr>';
+    echo '<th scope="row">Date Range</th>';
+    echo '<td>';
+    echo 'From: <input type="date" name="start_date" value="' . esc_attr($_GET['start_date'] ?? '') . '"> ';
+    echo 'To: <input type="date" name="end_date" value="' . esc_attr($_GET['end_date'] ?? '') . '">';
+    echo '</td>';
+    echo '</tr>';
+
+    // Format Dropdown
+    echo '<tr>';
+    echo '<th scope="row">Format</th>';
+    echo '<td>';
+    echo '<select name="format_id">';
+    echo '<option value="">-- All Formats --</option>';
+    foreach ($formats as $format) {
+        $selected = (isset($_GET['format_id']) && $_GET['format_id'] == $format['format_id']) ? 'selected' : '';
+        echo '<option value="' . esc_attr($format['format_id']) . '" ' . $selected . '>' . esc_html($format['name']) . '</option>';
+    }
+    echo '</select>';
+    echo '</td>';
+    echo '</tr>';
+
+    // Program Area Dropdown
+    echo '<tr>';
+    echo '<th scope="row">Program Area</th>';
+    echo '<td>';
+    echo '<select name="area_id">';
+    echo '<option value="">-- All Program Areas --</option>';
+    foreach ($areas as $area) {
+        $selected = (isset($_GET['area_id']) && $_GET['area_id'] == $area['area_id']) ? 'selected' : '';
+        echo '<option value="' . esc_attr($area['area_id']) . '" ' . $selected . '>' . esc_html($area['name']) . '</option>';
+    }
+    echo '</select>';
+    echo '</td>';
+    echo '</tr>';
+
+    // Featured Links Only checkbox
+    echo '<tr>';
+    echo '<th scope="row">Featured Links Only</th>';
+    echo '<td>';
+    $featured_checked = (!empty($_GET['is_featured_link'])) ? 'checked' : '';
+    echo '<label><input type="checkbox" name="is_featured_link" value="1" ' . $featured_checked . '> Show only featured links</label>';
+    echo '</td>';
+    echo '</tr>';
+
+    // Keyword Search
+    echo '<tr>';
+    echo '<th scope="row">Keyword Search</th>';
+    echo '<td>';
+    echo '<input type="text" name="search" value="' . esc_attr($_GET['search'] ?? '') . '" style="width:300px;">';
+    echo '</td>';
+    echo '</tr>';
+
+    // Tags Checkboxes
+    echo '<tr>';
+    echo '<th scope="row">Tags</th>';
+    echo '<td>';
+    if (!empty($tags)) {
+        $selected_tags = $_GET['tags'] ?? [];
+        foreach ($tags as $index => $tag) {
+            if ($index % 4 == 0) echo '<div style="clear: both;"></div>';
+            $checked = (is_array($selected_tags) && in_array($tag['tag_id'], $selected_tags)) ? 'checked' : '';
+            echo '<label style="width: 23%; display: inline-block; margin-right: 1%;">';
+            echo '<input type="checkbox" name="tags[]" value="' . esc_attr($tag['tag_id']) . '" ' . $checked . '> ' . esc_html($tag['name']);
+            echo '</label>';
+        }
+    } else {
+        echo 'No tags available.';
+    }
+    echo '</td>';
+    echo '</tr>';
+
+    echo '</tbody></table>';
+
+    echo '<p><input type="submit" class="button button-primary" value="Show Filtered List"></p>';
+    echo '</form>';
+    echo '</div>'; // Close styled div
+
+    // Build the query with filters
+    $query = "
+        SELECT l.*, a.name AS area_name, f.name AS format_name
+        FROM $links_table l
+        LEFT JOIN $areas_table a ON l.area_id = a.area_id
+        LEFT JOIN $formats_table f ON l.format_id = f.format_id
+    ";
+
+    // Build WHERE and parameters first
+    $where = [];
+    $params = [];
+
+    // Date range filter
+    if (!empty($_GET['start_date'])) {
+        $where[] = "l.creation_date >= %s";
+        $params[] = $_GET['start_date'] . ' 00:00:00';
+    }
+    if (!empty($_GET['end_date'])) {
+        $where[] = "l.creation_date <= %s";
+        $params[] = $_GET['end_date'] . ' 23:59:59';
+    }
+
+    // Format filter
+    if (!empty($_GET['format_id'])) {
+        $where[] = "l.format_id = %d";
+        $params[] = intval($_GET['format_id']);
+    }
+
+    // Program area filter
+    if (!empty($_GET['area_id'])) {
+        $where[] = "l.area_id = %d";
+        $params[] = intval($_GET['area_id']);
+    }
+
+    // Featured Links filter
+    if (!empty($_GET['is_featured_link'])) {
+        $where[] = "l.is_featured_link = 1";
+    }
+
+    // Keyword search filter
+    if (!empty($_GET['search'])) {
+        $where[] = "(l.title LIKE %s OR l.description LIKE %s)";
+        $search = '%' . $wpdb->esc_like($_GET['search']) . '%';
+        $params[] = $search;
+        $params[] = $search;
+    }
+
+    // Start base query
+    $query = "
+        SELECT l.*, a.name AS area_name, f.name AS format_name
+        FROM $links_table l
+        LEFT JOIN $areas_table a ON l.area_id = a.area_id
+        LEFT JOIN $formats_table f ON l.format_id = f.format_id
+    ";
+
+    // Tags filter logic (join AFTER base query built)
+    $tag_params = [];
+    if (!empty($_GET['tags'])) {
+        $tag_ids = array_map('intval', $_GET['tags']);
+        $tag_placeholders = implode(',', array_fill(0, count($tag_ids), '%d'));
+
+        $query .= "
+            INNER JOIN $linktags_table lt ON l.link_id = lt.link_id
+            AND lt.tag_id IN ($tag_placeholders)
+        ";
+        $tag_params = $tag_ids;
+    }
+
+    // Add WHERE clause
+    if (!empty($where)) {
+        $query .= " WHERE " . implode(' AND ', $where);
+    }
+
+    // Group by link_id to avoid duplicates if multiple tags match
+    $query .= " GROUP BY l.link_id ORDER BY l.creation_date DESC";
+
+    // Merge tag_params FIRST since their placeholders come first
+    $final_params = array_merge($tag_params, $params);
+
+    $links = $wpdb->get_results($wpdb->prepare($query, $final_params), ARRAY_A);
+
+    // Display results table
+    if (empty($links)) {
+        echo '<p>No links found for the selected filters.</p>';
+    } else {
+        echo '<table class="wp-list-table widefat striped">';
+        echo '<thead><tr>';
+        echo '<th>Title</th>';
+        echo '<th>URL</th>';
+        echo '<th>Program Area</th>';
+        echo '<th>Format</th>';
+        echo '<th>Creation Date</th>';
+        echo '<th>Featured</th>';
+        echo '<th>Actions</th>';
+        echo '</tr></thead><tbody>';
+
+        foreach ($links as $link) {
+            echo '<tr>';
+            echo '<td>' . esc_html($link['title']) . '</td>';
+            echo '<td><a href="' . esc_url($link['link_url']) . '" target="_blank">' . esc_html($link['link_url']) . '</a></td>';
+            echo '<td>' . esc_html($link['area_name']) . '</td>';
+            echo '<td>' . esc_html($link['format_name']) . '</td>';
+            echo '<td>' . esc_html($link['creation_date']) . '</td>';
+            echo '<td>' . ($link['is_featured_link'] ? 'Yes' : 'No') . '</td>';
+            echo '<td style="white-space:nowrap;">';
+            echo '<a href="' . admin_url('admin.php?page=leanwi-lm-edit-link&link_id=' . esc_attr($link['link_id'])) . '" title="Edit Link" style="margin-right:8px;"><span class="dashicons dashicons-edit"></span></a>';
+            echo '<a href="' . admin_url('admin.php?page=leanwi-lm-manage-links&delete_link=' . esc_attr($link['link_id'])) . '" class="delete-link" title="Delete Link"><span class="dashicons dashicons-trash" style="color:red;"></span></a>';
+            echo '</td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody></table>';
+    }
+    echo '<a style="margin-top: 20px" href="' . admin_url('admin.php?page=leanwi-lm-add-link') . '" class="button button-primary">Add New Link</a>';
+    echo '</div>';
+
+    // JS confirm dialog for delete
+    ?>
+    <script type="text/javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            const deleteLinks = document.querySelectorAll('.delete-link');
+            deleteLinks.forEach(function(link) {
+                link.addEventListener('click', function(event) {
+                    if (!confirm('Are you sure you want to delete this link? This action cannot be undone.')) {
+                        event.preventDefault();
+                    }
+                });
+            });
+        });
+    </script>
+    <?php
 }
+
+function leanwi_lm_add_link_page() {
+    global $wpdb;
+    $links_table = $wpdb->prefix . 'leanwi_lm_links';
+    $areas_table = $wpdb->prefix . 'leanwi_lm_program_area';
+    $formats_table = $wpdb->prefix . 'leanwi_lm_formats';
+    $tags_table = $wpdb->prefix . 'leanwi_lm_tags';
+    $linktags_table = $wpdb->prefix . 'leanwi_lm_linktags';
+
+    // Handle form submission
+    if (isset($_POST['add_link'])) {
+        $area_id = intval($_POST['area_id']);
+        $format_id = isset($_POST['format_id']) ? intval($_POST['format_id']) : null;
+
+        $link_url = esc_url_raw(wp_unslash($_POST['link_url']));
+        $title = sanitize_text_field(wp_unslash($_POST['title']));
+        $description = sanitize_text_field(wp_unslash($_POST['description']));
+        $is_featured_link = isset($_POST['is_featured_link']) ? 1 : 0;
+
+        // Handle creation_date input
+        if (!empty($_POST['creation_date'])) {
+            // User provided a date – set to midnight of that date
+            $creation_date = sanitize_text_field($_POST['creation_date']) . ' 00:00:00';
+        } else {
+            // Use current date and time
+            $creation_date = current_time('mysql'); // WordPress current time in MySQL DATETIME format
+        }
+
+        // Insert the new link
+        $wpdb->insert(
+            $links_table,
+            [
+                'area_id' => $area_id,
+                'link_url' => $link_url,
+                'title' => $title,
+                'description' => $description,
+                'format_id' => $format_id,
+                'is_featured_link' => $is_featured_link,
+                'creation_date' => $creation_date
+            ],
+            ['%d', '%s', '%s', '%s', '%d', '%d', '%s']
+        );
+
+        $link_id = $wpdb->insert_id;
+
+        // Insert selected tags into linktags table
+        if (!empty($_POST['tags']) && is_array($_POST['tags'])) {
+            foreach ($_POST['tags'] as $tag_id) {
+                $tag_id = intval($tag_id);
+                $wpdb->insert(
+                    $linktags_table,
+                    ['link_id' => $link_id, 'tag_id' => $tag_id],
+                    ['%d', '%d']
+                );
+            }
+        }
+
+        echo '<div class="updated"><p>Link added successfully with tags.</p></div>';
+    }
+
+    // Fetch Program Areas
+    $areas = $wpdb->get_results("SELECT area_id, name FROM $areas_table ORDER BY display_order ASC", ARRAY_A);
+
+    // Fetch Formats
+    $formats = $wpdb->get_results("SELECT format_id, name FROM $formats_table ORDER BY display_order ASC", ARRAY_A);
+
+    // Fetch Tags
+    $tags = $wpdb->get_results("SELECT tag_id, name FROM $tags_table ORDER BY display_order ASC", ARRAY_A);
+
+    // Get today's date for default value
+    $today_date = date('Y-m-d');
+
+    // Display form
+    echo '<div class="wrap">';
+    echo '<h1>Add Link</h1>';
+    echo '<form method="POST">';
+
+    // Program Area dropdown
+    echo '<p>Program Area: <select name="area_id" required>';
+    echo '<option value="">Select Program Area</option>';
+    if ($areas) {
+        foreach ($areas as $area) {
+            echo '<option value="' . esc_attr($area['area_id']) . '">' . esc_html($area['name']) . '</option>';
+        }
+    }
+    echo '</select></p>';
+
+    // Format dropdown
+    echo '<p>Format: <select name="format_id">';
+    echo '<option value="">None</option>';
+    if ($formats) {
+        foreach ($formats as $format) {
+            echo '<option value="' . esc_attr($format['format_id']) . '">' . esc_html($format['name']) . '</option>';
+        }
+    }
+    echo '</select></p>';
+
+    // Link URL input
+    echo '<p>Link URL: <input type="url" name="link_url" required style="width:600px;"></p>';
+
+    // Title input
+    echo '<p>Title: <input type="text" name="title" required style="width:400px;"></p>';
+
+    // Description input
+    echo '<p>Description: <input type="text" name="description" style="width:600px;"></p>';
+
+    // Creation Date input
+    echo '<p>Creation Date: <input type="date" name="creation_date" value="' . esc_attr($today_date) . '"></p>';
+
+    // Featured Link checkbox
+    echo '<p><label><input type="checkbox" name="is_featured_link"> Mark as Featured Link</label></p>';
+
+    // Tags checkboxes in a 4-column grid
+    echo '<p><strong>Tags:</strong></p>';
+    if ($tags) {
+        echo '<div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:5px; max-width:800px;">';
+        foreach ($tags as $tag) {
+            echo '<label><input type="checkbox" name="tags[]" value="' . esc_attr($tag['tag_id']) . '"> ' . esc_html($tag['name']) . '</label>';
+        }
+        echo '</div>';
+    } else {
+        echo '<p>No tags available.</p>';
+    }
+
+    // Submit button
+    echo '<p><input type="submit" name="add_link" value="Add Link" class="button button-primary"></p>';
+
+    echo '</form>';
+    echo '</div>';
+}
+
+function leanwi_lm_edit_link_page() {
+    global $wpdb;
+    $links_table = $wpdb->prefix . 'leanwi_lm_links';
+    $areas_table = $wpdb->prefix . 'leanwi_lm_program_area';
+    $formats_table = $wpdb->prefix . 'leanwi_lm_formats';
+    $tags_table = $wpdb->prefix . 'leanwi_lm_tags';
+    $linktags_table = $wpdb->prefix . 'leanwi_lm_linktags';
+
+    // Check if a link_id is provided
+    if (!isset($_GET['link_id'])) {
+        echo '<div class="error"><p>No link ID provided.</p></div>';
+        return;
+    }
+
+    $link_id = intval($_GET['link_id']);
+
+    // Fetch the link data
+    $link = $wpdb->get_row($wpdb->prepare("SELECT * FROM $links_table WHERE link_id = %d", $link_id), ARRAY_A);
+    if (!$link) {
+        echo '<div class="error"><p>Link not found.</p></div>';
+        return;
+    }
+
+    // Handle form submission
+    if (isset($_POST['update_link'])) {
+        $area_id = intval($_POST['area_id']);
+        $format_id = isset($_POST['format_id']) ? intval($_POST['format_id']) : null;
+
+        $link_url = esc_url_raw(wp_unslash($_POST['link_url']));
+        $title = sanitize_text_field(wp_unslash($_POST['title']));
+        $description = sanitize_text_field(wp_unslash($_POST['description']));
+        $is_featured_link = isset($_POST['is_featured_link']) ? 1 : 0;
+
+        // Handle creation_date input
+        if (!empty($_POST['creation_date'])) {
+            $creation_date = sanitize_text_field($_POST['creation_date']) . ' 00:00:00';
+        } else {
+            $creation_date = current_time('mysql');
+        }
+
+        // Update the link record
+        $wpdb->update(
+            $links_table,
+            [
+                'area_id' => $area_id,
+                'link_url' => $link_url,
+                'title' => $title,
+                'description' => $description,
+                'format_id' => $format_id,
+                'is_featured_link' => $is_featured_link,
+                'creation_date' => $creation_date
+            ],
+            ['link_id' => $link_id],
+            ['%d', '%s', '%s', '%s', '%d', '%d', '%s'],
+            ['%d']
+        );
+
+        // Update tags: delete existing then insert new selections
+        $wpdb->delete($linktags_table, ['link_id' => $link_id], ['%d']);
+
+        if (!empty($_POST['tags']) && is_array($_POST['tags'])) {
+            foreach ($_POST['tags'] as $tag_id) {
+                $tag_id = intval($tag_id);
+                $wpdb->insert(
+                    $linktags_table,
+                    ['link_id' => $link_id, 'tag_id' => $tag_id],
+                    ['%d', '%d']
+                );
+            }
+        }
+
+        echo '<div class="updated"><p>Link updated successfully.</p></div>';
+
+        // Refresh data
+        $link = $wpdb->get_row($wpdb->prepare("SELECT * FROM $links_table WHERE link_id = %d", $link_id), ARRAY_A);
+    }
+
+    // Fetch Program Areas
+    $areas = $wpdb->get_results("SELECT area_id, name FROM $areas_table ORDER BY display_order ASC", ARRAY_A);
+
+    // Fetch Formats
+    $formats = $wpdb->get_results("SELECT format_id, name FROM $formats_table ORDER BY display_order ASC", ARRAY_A);
+
+    // Fetch Tags
+    $tags = $wpdb->get_results("SELECT tag_id, name FROM $tags_table ORDER BY display_order ASC", ARRAY_A);
+
+    // Fetch currently assigned tags
+    $current_tags = $wpdb->get_col($wpdb->prepare("SELECT tag_id FROM $linktags_table WHERE link_id = %d", $link_id));
+
+    // Display form
+    echo '<div class="wrap">';
+    echo '<h1>Edit Link</h1>';
+    echo '<form method="POST">';
+
+    // Program Area dropdown
+    echo '<p>Program Area: <select name="area_id" required>';
+    echo '<option value="">Select Program Area</option>';
+    if ($areas) {
+        foreach ($areas as $area) {
+            echo '<option value="' . esc_attr($area['area_id']) . '" ' . selected($area['area_id'], $link['area_id'], false) . '>' . esc_html($area['name']) . '</option>';
+        }
+    }
+    echo '</select></p>';
+
+    // Format dropdown
+    echo '<p>Format: <select name="format_id">';
+    echo '<option value="">None</option>';
+    if ($formats) {
+        foreach ($formats as $format) {
+            echo '<option value="' . esc_attr($format['format_id']) . '" ' . selected($format['format_id'], $link['format_id'], false) . '>' . esc_html($format['name']) . '</option>';
+        }
+    }
+    echo '</select></p>';
+
+    // Link URL input
+    echo '<p>Link URL: <input type="url" name="link_url" value="' . esc_attr($link['link_url']) . '" required style="width:600px;"></p>';
+
+    // Title input
+    echo '<p>Title: <input type="text" name="title" value="' . esc_attr($link['title']) . '" required style="width:400px;"></p>';
+
+    // Description input
+    echo '<p>Description: <input type="text" name="description" value="' . esc_attr($link['description']) . '" style="width:600px;"></p>';
+
+    // Creation Date input
+    $creation_date = (!empty($link['creation_date'])) ? date('Y-m-d', strtotime($link['creation_date'])) : date('Y-m-d');
+    echo '<p>Creation Date: <input type="date" name="creation_date" value="' . esc_attr($creation_date) . '"></p>';
+
+    // Featured Link checkbox
+    echo '<p><label><input type="checkbox" name="is_featured_link" ' . checked($link['is_featured_link'], 1, false) . '> Mark as Featured Link</label></p>';
+
+    // Tags checkboxes in a 4-column grid
+    echo '<p><strong>Tags:</strong></p>';
+    if ($tags) {
+        echo '<div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:5px; max-width:800px;">';
+        foreach ($tags as $tag) {
+            $checked = in_array($tag['tag_id'], $current_tags) ? 'checked' : '';
+            echo '<label><input type="checkbox" name="tags[]" value="' . esc_attr($tag['tag_id']) . '" ' . $checked . '> ' . esc_html($tag['name']) . '</label>';
+        }
+        echo '</div>';
+    } else {
+        echo '<p>No tags available.</p>';
+    }
+
+    // Submit button
+    echo '<p><input type="submit" name="update_link" value="Save Changes" class="button button-primary"></p>';
+
+    echo '</form>';
+    echo '</div>';
+}
+
 
 /**************************************************************************************************
  * Program Areas
