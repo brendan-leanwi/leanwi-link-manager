@@ -2,9 +2,9 @@
 namespace LEANWI_Link_Manager;
 
 // Define GitHub repository details
-const GITHUB_REPO = 'brendan-leanwi/LEANWI-Link-Manager';
+const GITHUB_REPO = 'brendan-leanwi/leanwi-link-manager';
 const PLUGIN_SLUG = 'leanwi-link-manager';
-const PLUGIN_FILE = 'LEANWI-Link-Manager/leanwi-link-manager.php';
+const PLUGIN_FILE = 'leanwi-link-manager/leanwi-link-manager.php';
 
 /**
  * Check GitHub for plugin updates and inject update data into WordPress.
@@ -78,7 +78,7 @@ function override_post_install($true, $hook_extra, $result) {
     global $wp_filesystem;
 
     if (isset($hook_extra['plugin']) && $hook_extra['plugin'] === PLUGIN_FILE) {
-        $corrected_path = trailingslashit(WP_PLUGIN_DIR) . 'LEANWI-Link-Manager';
+        $corrected_path = trailingslashit(WP_PLUGIN_DIR) . 'leanwi-link-manager';
 
         // Move plugin to expected folder
         if ($wp_filesystem->move($result['destination'], $corrected_path, true)) {

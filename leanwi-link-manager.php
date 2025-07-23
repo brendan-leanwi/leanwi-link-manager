@@ -2,8 +2,8 @@
 namespace LEANWI_Link_Manager;
 /*
 Plugin Name:  LEANWI Link Manager
-GitHub URI:   https://github.com/brendan-leanwi/LEANWI-Link-Manager
-Update URI:   https://github.com/brendan-leanwi/LEANWI-Link-Manager
+GitHub URI:   https://github.com/brendan-leanwi/leanwi-link-manager
+Update URI:   https://github.com/brendan-leanwi/leanwi-link-manager
 Description:  Functionality for managing and displaying links to resources via a table for LEANWI Divi WordPress websites
 Version:      0.0.1
 Author:       Brendan Tuckey
