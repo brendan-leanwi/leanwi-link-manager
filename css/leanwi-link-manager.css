@@ -1,0 +1,14 @@
+#leanwi-link-manager-container {
+    margin: 20px 0;
+}
+
+#leanwi-link-manager-results table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#leanwi-link-manager-results th,
+#leanwi-link-manager-results td {
+    border: 1px solid #ccc;
+    padding: 8px;
+}

@@ -20,6 +20,9 @@ require_once plugin_dir_path(__FILE__) . 'php/plugin/menu-functions.php';
 require_once plugin_dir_path(__FILE__) . 'php/plugin/schema.php'; 
 require_once plugin_dir_path(__FILE__) . 'php/plugin/plugin-updater.php';
 
+require_once plugin_dir_path(__FILE__) . 'php/frontend/links-list-shortcode.php';
+require_once plugin_dir_path(__FILE__) . 'php/frontend/ajax-list-handlers.php';
+
 // Hook to run when the plugin is activated
 register_activation_hook(__FILE__, __NAMESPACE__ . '\\leanwi_create_tables');
 
@@ -41,11 +44,27 @@ function leanwi_update_check() {
 }
 add_action('admin_init', __NAMESPACE__ . '\\leanwi_update_check');
 
-// Register the JavaScript files
-function leanwi_enqueue_scripts() {
-    
+function leanwi_lm_enqueue_scripts() {
+    wp_register_script(
+        'leanwi-link-manager-ajax',
+        plugin_dir_url(__FILE__) . 'js/leanwi-link-manager.js',
+        ['jquery'],
+        '1.0',
+        true
+    );
+    wp_localize_script('leanwi-link-manager-ajax', 'LEANWI_LINK_MANAGER_AJAX', [
+        'ajax_url' => admin_url('admin-ajax.php'),
+    ]);
+
+    wp_register_style(
+        'leanwi-link-manager-style',
+        plugin_dir_url(__FILE__) . 'css/leanwi-link-manager.css',
+        [],
+        '1.0'
+    );
 }
-add_action('wp_enqueue_scripts', __NAMESPACE__ . '\\leanwi_enqueue_scripts');
+add_action('wp_enqueue_scripts', __NAMESPACE__ . '\\leanwi_lm_enqueue_scripts');
+
 
 
 function enqueue_custom_styles() {
