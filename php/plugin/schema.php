@@ -56,7 +56,12 @@ function leanwi_create_tables() {
         FOREIGN KEY (tag_id) REFERENCES {$wpdb->prefix}leanwi_lm_tags(tag_id) ON DELETE CASCADE
     ) $engine $charset_collate;";
 
-
+    $sql6 = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}leanwi_lm_related_links (
+        relationship_id INT NOT NULL,
+        link_id INT NOT NULL,
+        PRIMARY KEY (relationship_id, link_id),
+        FOREIGN KEY (link_id) REFERENCES {$wpdb->prefix}leanwi_lm_links(link_id) ON DELETE CASCADE
+    ) $engine $charset_collate;";
     // Execute the SQL queries
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -113,6 +118,16 @@ function leanwi_create_tables() {
     } catch (Exception $e) {
         error_log($e->getMessage());
     }
+
+    try {
+        dbDelta($sql6);
+        // Debug logging to track SQL execution
+        if ($wpdb->last_error) {
+            error_log('DB Error6: ' . $wpdb->last_error); // Logs the error to wp-content/debug.log
+        }
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+    }
 }
 
 
@@ -121,6 +136,7 @@ function leanwi_drop_tables() {
     global $wpdb;
 
     // SQL to drop the tables
+    $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_related_links");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_linktags");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_links");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_formats");

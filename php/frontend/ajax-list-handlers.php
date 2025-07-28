@@ -68,11 +68,6 @@ function leanwi_filter_links() {
         $where[] = "l.is_featured_link = 1";
     }
 
-    /*if (!empty($tags)) {
-        $tag_placeholders = implode(',', array_fill(0, count($tags), '%d'));
-        $query .= " INNER JOIN $linktags_table lt ON l.link_id = lt.link_id AND lt.tag_id IN ($tag_placeholders)";
-        $params = array_merge($params, $tags);
-    }*/
     if (!empty($tags)) {
         $tag_placeholders = implode(',', array_fill(0, count($tags), '%d'));
         $query .= " INNER JOIN $linktags_table lt ON l.link_id = lt.link_id";

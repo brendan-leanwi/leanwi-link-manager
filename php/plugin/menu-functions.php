@@ -469,6 +469,7 @@ function leanwi_lm_add_link_page() {
     $formats_table = $wpdb->prefix . 'leanwi_lm_formats';
     $tags_table = $wpdb->prefix . 'leanwi_lm_tags';
     $linktags_table = $wpdb->prefix . 'leanwi_lm_linktags';
+    $related_links_table = $wpdb->prefix . 'leanwi_lm_related_links';
 
     // Handle form submission
     if (isset($_POST['add_link'])) {
@@ -480,16 +481,10 @@ function leanwi_lm_add_link_page() {
         $description = sanitize_text_field(wp_unslash($_POST['description']));
         $is_featured_link = isset($_POST['is_featured_link']) ? 1 : 0;
 
-        // Handle creation_date input
-        if (!empty($_POST['creation_date'])) {
-            // User provided a date – set to midnight of that date
-            $creation_date = sanitize_text_field($_POST['creation_date']) . ' 00:00:00';
-        } else {
-            // Use current date and time
-            $creation_date = current_time('mysql'); // WordPress current time in MySQL DATETIME format
-        }
+        $creation_date = !empty($_POST['creation_date'])
+            ? sanitize_text_field($_POST['creation_date']) . ' 00:00:00'
+            : current_time('mysql');
 
-        // Insert the new link
         $wpdb->insert(
             $links_table,
             [
@@ -506,74 +501,80 @@ function leanwi_lm_add_link_page() {
 
         $link_id = $wpdb->insert_id;
 
-        // Insert selected tags into linktags table
+        // Save tags
         if (!empty($_POST['tags']) && is_array($_POST['tags'])) {
             foreach ($_POST['tags'] as $tag_id) {
-                $tag_id = intval($tag_id);
-                $wpdb->insert(
-                    $linktags_table,
-                    ['link_id' => $link_id, 'tag_id' => $tag_id],
-                    ['%d', '%d']
-                );
+                $wpdb->insert($linktags_table, [
+                    'link_id' => $link_id,
+                    'tag_id' => intval($tag_id)
+                ], ['%d', '%d']);
+            }
+        }
+
+        // Handle related links
+        $relationship_id = null;
+        if (!empty($_POST['related_links']) && is_array($_POST['related_links'])) {
+            $related_link_ids = array_map('intval', $_POST['related_links']);
+
+            $existing_relationship = $wpdb->get_var($wpdb->prepare(
+                "SELECT relationship_id FROM $related_links_table WHERE link_id = %d LIMIT 1",
+                $related_link_ids[0]
+            ));
+            $relationship_id = $existing_relationship ?: (int) $wpdb->get_var("SELECT MAX(relationship_id) FROM $related_links_table") + 1;
+
+            $wpdb->insert($related_links_table, [
+                'relationship_id' => $relationship_id,
+                'link_id' => $link_id
+            ], ['%d', '%d']);
+
+            foreach ($related_link_ids as $related_link_id) {
+                $exists = $wpdb->get_var($wpdb->prepare(
+                    "SELECT 1 FROM $related_links_table WHERE relationship_id = %d AND link_id = %d",
+                    $relationship_id,
+                    $related_link_id
+                ));
+                if (!$exists) {
+                    $wpdb->insert($related_links_table, [
+                        'relationship_id' => $relationship_id,
+                        'link_id' => $related_link_id
+                    ], ['%d', '%d']);
+                }
             }
         }
 
         echo '<div class="updated"><p>Link added successfully with tags.</p></div>';
     }
 
-    // Fetch Program Areas
+    // Fetch data
     $areas = $wpdb->get_results("SELECT area_id, name FROM $areas_table ORDER BY display_order ASC", ARRAY_A);
-
-    // Fetch Formats
     $formats = $wpdb->get_results("SELECT format_id, name FROM $formats_table ORDER BY display_order ASC", ARRAY_A);
-
-    // Fetch Tags
     $tags = $wpdb->get_results("SELECT tag_id, name FROM $tags_table ORDER BY display_order ASC", ARRAY_A);
-
-    // Get today's date for default value
     $today_date = date('Y-m-d');
 
-    // Display form
     echo '<div class="wrap">';
     echo '<h1>Add Link</h1>';
     echo '<form method="POST">';
 
-    // Program Area dropdown
-    echo '<p>Program Area: <select name="area_id" required>';
-    echo '<option value="">Select Program Area</option>';
-    if ($areas) {
-        foreach ($areas as $area) {
-            echo '<option value="' . esc_attr($area['area_id']) . '">' . esc_html($area['name']) . '</option>';
-        }
+    // Form inputs...
+    echo '<p>Program Area: <select name="area_id" required><option value="">Select Program Area</option>';
+    foreach ($areas as $area) {
+        echo '<option value="' . esc_attr($area['area_id']) . '">' . esc_html($area['name']) . '</option>';
     }
     echo '</select></p>';
 
-    // Format dropdown
-    echo '<p>Format: <select name="format_id">';
-    echo '<option value="">None</option>';
-    if ($formats) {
-        foreach ($formats as $format) {
-            echo '<option value="' . esc_attr($format['format_id']) . '">' . esc_html($format['name']) . '</option>';
-        }
+    echo '<p>Format: <select name="format_id"><option value="">None</option>';
+    foreach ($formats as $format) {
+        echo '<option value="' . esc_attr($format['format_id']) . '">' . esc_html($format['name']) . '</option>';
     }
     echo '</select></p>';
 
-    // Link URL input
     echo '<p>Link URL: <input type="url" name="link_url" required style="width:600px;"></p>';
-
-    // Title input
     echo '<p>Title: <input type="text" name="title" required style="width:400px;"></p>';
-
-    // Description input
     echo '<p>Description: <input type="text" name="description" style="width:600px;"></p>';
-
-    // Creation Date input
     echo '<p>Creation Date: <input type="date" name="creation_date" value="' . esc_attr($today_date) . '"></p>';
-
-    // Featured Link checkbox
     echo '<p><label><input type="checkbox" name="is_featured_link"> Mark as Featured Link</label></p>';
 
-    // Tags checkboxes in a 4-column grid
+    // Tags
     echo '<p><strong>Tags:</strong></p>';
     if ($tags) {
         echo '<div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:5px; max-width:800px;">';
@@ -585,12 +586,49 @@ function leanwi_lm_add_link_page() {
         echo '<p>No tags available.</p>';
     }
 
-    // Submit button
-    echo '<p><input type="submit" name="add_link" value="Add Link" class="button button-primary"></p>';
+    // Related Links
+    $existing_links = $wpdb->get_results("
+        SELECT l.link_id, l.title, l.description, rl.relationship_id
+        FROM $links_table l
+        LEFT JOIN $related_links_table rl ON l.link_id = rl.link_id
+        ORDER BY l.creation_date DESC
+    ", ARRAY_A);
 
+    echo '<p><strong>Relate to Existing Links:</strong> (Hold Ctrl/Cmd to select multiple)</p>';
+    echo '<input type="text" id="link-filter" placeholder="Filter by title or description..." style="width: 400px; margin-bottom: 10px;">';
+    echo '<div style="overflow-x: auto; max-width: 100%;">';
+    echo '<select name="related_links[]" id="related-links-select" multiple style="min-width: 960px; height: 300px;">';
+
+    foreach ($existing_links as $link) {
+        $label = esc_html($link['title']);
+        $search_text = strtolower($link['title'] . ' ' . $link['description']);
+        if (!empty($link['relationship_id'])) {
+            $label .= ' (Group ID: ' . intval($link['relationship_id']) . ')';
+        }
+        echo '<option value="' . esc_attr($link['link_id']) . '" data-search="' . esc_attr($search_text) . '">' . $label . '</option>';
+    }
+
+    echo '</select></div>';
+
+    // Submit
+    echo '<p><input type="submit" name="add_link" value="Add Link" class="button button-primary"></p>';
     echo '</form>';
     echo '</div>';
+
+    // JavaScript Filter
+    echo '<script>
+        document.getElementById("link-filter").addEventListener("input", function() {
+            const searchTerm = this.value.toLowerCase();
+            const options = document.getElementById("related-links-select").options;
+            for (let i = 0; i < options.length; i++) {
+                const option = options[i];
+                const text = option.getAttribute("data-search");
+                option.style.display = text.includes(searchTerm) ? "block" : "none";
+            }
+        });
+    </script>';
 }
+
 
 function leanwi_lm_edit_link_page() {
     global $wpdb;
@@ -599,6 +637,7 @@ function leanwi_lm_edit_link_page() {
     $formats_table = $wpdb->prefix . 'leanwi_lm_formats';
     $tags_table = $wpdb->prefix . 'leanwi_lm_tags';
     $linktags_table = $wpdb->prefix . 'leanwi_lm_linktags';
+    $related_links_table = $wpdb->prefix . 'leanwi_lm_related_links';
 
     // Check if a link_id is provided
     if (!isset($_GET['link_id'])) {
@@ -663,6 +702,59 @@ function leanwi_lm_edit_link_page() {
             }
         }
 
+        // Handle Related Links
+        $relationship_id = null;
+        $related_link_ids = !empty($_POST['related_links']) && is_array($_POST['related_links'])
+            ? array_map('intval', $_POST['related_links'])
+            : [];
+
+        if (!empty($related_link_ids)) {
+            // Get the relationship_id from the first selected related link
+            $existing_relationship = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT relationship_id FROM $related_links_table WHERE link_id = %d LIMIT 1",
+                    $related_link_ids[0]
+                )
+            );
+            if ($existing_relationship) {
+                $relationship_id = $existing_relationship;
+            }
+        }
+
+        // If no existing relationship group but we need to create a relationship link
+        if (!$relationship_id  && !empty($related_link_ids)) {
+            $relationship_id = (int) $wpdb->get_var("SELECT MAX(relationship_id) FROM $related_links_table") + 1;
+        }
+
+        // Remove old relationship (if any) for this link
+        $wpdb->delete($related_links_table, ['link_id' => $link_id], ['%d']);
+
+        if ($relationship_id) {
+            // Add current link to the group
+            error_log("Link ID being inserted into related_links: " . $link_id);
+            error_log("Using relationship_id: " . $relationship_id);
+
+            $wpdb->insert($related_links_table, [
+                'relationship_id' => $relationship_id,
+                'link_id' => $link_id
+            ], ['%d', '%d']);
+
+            // Add selected links to the same group (skip if already there)
+            foreach ($related_link_ids as $related_link_id) {
+                $exists = $wpdb->get_var($wpdb->prepare(
+                    "SELECT 1 FROM $related_links_table WHERE relationship_id = %d AND link_id = %d",
+                    $relationship_id,
+                    $related_link_id
+                ));
+                if (!$exists) {
+                    $wpdb->insert($related_links_table, [
+                        'relationship_id' => $relationship_id,
+                        'link_id' => $related_link_id
+                    ], ['%d', '%d']);
+                }
+            }
+        }
+
         echo '<div class="updated"><p>Link updated successfully.</p></div>';
 
         // Refresh data
@@ -680,6 +772,33 @@ function leanwi_lm_edit_link_page() {
 
     // Fetch currently assigned tags
     $current_tags = $wpdb->get_col($wpdb->prepare("SELECT tag_id FROM $linktags_table WHERE link_id = %d", $link_id));
+
+    $related_links_table = $wpdb->prefix . 'leanwi_lm_related_links';
+
+    // Get current relationship_id (if any)
+    $current_relationship_id = $wpdb->get_var($wpdb->prepare(
+        "SELECT relationship_id FROM $related_links_table WHERE link_id = %d",
+        $link_id
+    ));
+
+    // Get all existing links and their relationship IDs
+    $existing_links = $wpdb->get_results("
+        SELECT l.link_id, l.title, rl.relationship_id
+        FROM $links_table l
+        LEFT JOIN $related_links_table rl ON l.link_id = rl.link_id
+        WHERE l.link_id != $link_id
+        ORDER BY l.creation_date DESC
+    ", ARRAY_A);
+
+    // Get list of link_ids already related to this one (excluding itself)
+    $currently_related_link_ids = [];
+    if ($current_relationship_id) {
+        $currently_related_link_ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT link_id FROM $related_links_table WHERE relationship_id = %d AND link_id != %d",
+            $current_relationship_id,
+            $link_id
+        ));
+    }
 
     // Display form
     echo '<div class="wrap">';
@@ -734,6 +853,39 @@ function leanwi_lm_edit_link_page() {
     } else {
         echo '<p>No tags available.</p>';
     }
+
+    // Related Links multi-select with filter
+    echo '<p><strong>Relate to Existing Links:</strong> (Hold Ctrl/Cmd to select multiple)</p>';
+    echo '<input type="text" id="related-links-filter" placeholder="Filter by title or description..." style="width: 300px; margin-bottom: 8px;">';
+
+    echo '<div style="overflow-x: auto; max-width: 100%;">';
+    echo '<select id="related-links-select" name="related_links[]" multiple style="min-width: 960px; height: 300px;">';
+
+    foreach ($existing_links as $link_row) {
+        $label = esc_html($link_row['title']);
+        if (!empty($link_row['relationship_id'])) {
+            $label .= ' (Group ID: ' . intval($link_row['relationship_id']) . ')';
+        }
+
+        $selected = in_array($link_row['link_id'], $currently_related_link_ids) ? 'selected' : '';
+        echo '<option value="' . esc_attr($link_row['link_id']) . '" ' . $selected . '>' . $label . '</option>';
+    }
+    echo '</select></div>';
+
+    // Filtering script
+    echo <<<EOD
+    <script>
+    document.getElementById('related-links-filter').addEventListener('input', function() {
+        var filter = this.value.toLowerCase();
+        var select = document.getElementById('related-links-select');
+        var options = select.options;
+        for (var i = 0; i < options.length; i++) {
+            var text = options[i].text.toLowerCase();
+            options[i].style.display = text.includes(filter) ? '' : 'none';
+        }
+    });
+    </script>
+    EOD;
 
     // Submit button
     echo '<p><input type="submit" name="update_link" value="Save Changes" class="button button-primary"></p>';
