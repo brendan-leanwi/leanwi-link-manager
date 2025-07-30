@@ -12,3 +12,18 @@
     border: 1px solid #ccc;
     padding: 8px;
 }
+
+.leanwi-link-feed {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+.leanwi-feed-item {
+    border: 1px solid #ddd;
+    padding: 1rem;
+    border-radius: 8px;
+    background: #f9f9f9;
+}
+.leanwi-feed-item h3 {
+    margin-top: 0;
+}

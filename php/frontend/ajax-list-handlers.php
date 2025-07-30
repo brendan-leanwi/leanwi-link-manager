@@ -13,27 +13,50 @@ function leanwi_filter_links() {
     $formats_table = $wpdb->prefix . 'leanwi_lm_formats';
     $tags_table = $wpdb->prefix . 'leanwi_lm_tags';
     $linktags_table = $wpdb->prefix . 'leanwi_lm_linktags';
+    $related_table = $wpdb->prefix . 'leanwi_lm_related_links';
 
-    error_log('POST tags: ' . print_r($_POST['tags'], true));
+   // Fetch initial constraints
+    $initial_area_id = isset($_POST['initial_area_id']) ? array_map('intval', explode(',', $_POST['initial_area_id'])) : [];
+    $initial_format_id = isset($_POST['initial_format_id']) ? array_map('intval', explode(',', $_POST['initial_format_id'])) : [];
+    $initial_tag_id = isset($_POST['initial_tag_id']) ? array_map('intval', explode(',', $_POST['initial_tag_id'])) : [];
 
-    $area_id = isset($_POST['area_id']) ? $_POST['area_id'] : [];
-    if (!is_array($area_id)) {
-        $area_id = array_map('intval', explode(',', $area_id));
-    } else {
-        $area_id = array_map('intval', $area_id);
-    }
+    // Fetch current user input
+    $current_area_id = $_POST['area_id'] ?? '';
+    $current_format_id = $_POST['format_id'] ?? '';
+    $current_tag_id = $_POST['tag_id'] ?? '';
 
-    $format_id = isset($_POST['format_id']) ? $_POST['format_id'] : [];
-    if (!is_array($format_id)) {
-        $format_id = array_map('intval', explode(',', $format_id));
-    } else {
-        $format_id = array_map('intval', $format_id);
-    }
+    $current_area_id = is_array($current_area_id) ? $current_area_id : [$current_area_id];
+    $current_format_id = is_array($current_format_id) ? $current_format_id : [$current_format_id];
+    $current_tag_id = is_array($current_tag_id) ? $current_tag_id : [$current_tag_id];
+
+    // PROGRAM AREA FILTER CONSTRUCTION
+    $initial_area_id = isset($_POST['initial_area_id']) ? array_map('intval', explode(',', $_POST['initial_area_id'])) : [];
+    $current_area_raw = $_POST['area_id'] ?? '';
+    $current_area = is_array($current_area_raw) ? $current_area_raw : [$current_area_raw];
+    $current_area_id = array_filter(array_map('intval', $current_area));
+    $area_id = !empty($current_area_id) ? $current_area_id : $initial_area_id;
+
+    // FORMAT FILTER CONSTRUCTION
+    $initial_format_id = isset($_POST['initial_format_id']) ? array_map('intval', explode(',', $_POST['initial_format_id'])) : [];
+    $current_format_raw = $_POST['format_id'] ?? '';
+    $current_format = is_array($current_format_raw) ? $current_format_raw : [$current_format_raw];
+    $current_format_id = array_filter(array_map('intval', $current_format));
+    $format_id = !empty($current_format_id) ? $current_format_id : $initial_format_id;
+
+    // TAG FILTER CONSTRUCTION
+    $initial_tag_id = isset($_POST['initial_tag_id']) ? array_map('intval', explode(',', $_POST['initial_tag_id'])) : [];
+    $current_tag_raw = $_POST['tag_id'] ?? '';
+    $current_tag = is_array($current_tag_raw) ? $current_tag_raw : [$current_tag_raw];
+    $current_tag_id = array_filter(array_map('intval', $current_tag));
+    $tag_id = !empty($current_tag_id) ? $current_tag_id : $initial_tag_id;
+    /*
+    $initial_tag_id = isset($_POST['initial_tag_id']) ? array_map('intval', explode(',', $_POST['initial_tag_id'])) : [];
+    $current_tag_id = isset($_POST['tag_id']) ? array_filter(array_map('intval', (array) $_POST['tag_id'])) : [];
+    $tag_id = !empty($current_tag_id) ? $current_tag_id : $initial_tag_id;
+    */
 
     $search = sanitize_text_field($_POST['search'] ?? '');
     $featured_only = (isset($_POST['featured_only']) && ($_POST['featured_only'] === '1' || $_POST['featured_only'] === 1)) ? 1 : 0;
-
-    $tags = isset($_POST['tags']) ? array_map('intval', $_POST['tags']) : [];
 
     // Build base query
     $query = "
@@ -68,11 +91,11 @@ function leanwi_filter_links() {
         $where[] = "l.is_featured_link = 1";
     }
 
-    if (!empty($tags)) {
-        $tag_placeholders = implode(',', array_fill(0, count($tags), '%d'));
+    if (!empty($tag_id)) {
+        $tag_placeholders = implode(',', array_fill(0, count($tag_id), '%d'));
         $query .= " INNER JOIN $linktags_table lt ON l.link_id = lt.link_id";
         $where[] = "lt.tag_id IN ($tag_placeholders)";
-        $params = array_merge($params, $tags);
+        $params = array_merge($params, $tag_id);
     }
 
     if (!empty($where)) {
@@ -83,6 +106,7 @@ function leanwi_filter_links() {
 
     //Send query to debug.log
     $prepared_query = $wpdb->prepare($query, $params);
+    error_log('Applied Filters: area_id=' . implode(',', $area_id) . ' format_id=' . implode(',', $format_id) . ' tags=' . implode(',', $tag_id));
     error_log($prepared_query);
 
     $results = $wpdb->get_results($wpdb->prepare($query, $params), ARRAY_A);
@@ -92,17 +116,78 @@ function leanwi_filter_links() {
         echo '<p>No links found.</p>';
     } else {
         echo '<table><thead><tr>';
-        echo '<th>Title</th><th>URL</th><th>Program Area</th><th>Format</th><th>Featured</th>';
+        echo '<th>Title</th><th>Date</th><th>Program Area</th><th>Format</th><th>Related Links</th><th>Tags</th>';
         echo '</tr></thead><tbody>';
 
         foreach ($results as $link) {
             echo '<tr>';
-            echo '<td>' . esc_html($link['title']) . '</td>';
-            echo '<td><a href="' . esc_url($link['link_url']) . '" target="_blank">Visit</a></td>';
+            echo '<td><a href="' . esc_url($link['link_url']) . '" target="_blank">' . esc_html($link['title']) . '</a></td>';
+            $display_date = new \DateTime($link['creation_date']);
+            echo '<td>' . esc_html($display_date->format('F Y')) . '</td>';
             echo '<td>' . esc_html($link['area_name']) . '</td>';
             echo '<td>' . esc_html($link['format_name']) . '</td>';
-            echo '<td>' . ($link['is_featured_link'] ? 'Yes' : 'No') . '</td>';
+            
+            // Get related link titles
+            $current_link_id = (int)$link['link_id'];
+
+            // First, get the relationship_id for this link
+            $relationship_id = $wpdb->get_var(
+                $wpdb->prepare("SELECT relationship_id FROM $related_table WHERE link_id = %d", $current_link_id)
+            );
+
+            $related_titles = '';
+
+            if ($relationship_id) {
+                // Get all other link_ids in this relationship group (excluding current)
+                $related_links = $wpdb->get_col(
+                    $wpdb->prepare("
+                        SELECT link_id FROM $related_table 
+                        WHERE relationship_id = %d AND link_id != %d
+                    ", $relationship_id, $current_link_id)
+                );
+
+                if (!empty($related_links)) {
+                    // Prepare placeholders for IN clause
+                    $placeholders = implode(',', array_fill(0, count($related_links), '%d'));
+
+                    // Get both title and URL of related links
+                    $query = "SELECT title, link_url FROM $links_table WHERE link_id IN ($placeholders)";
+                    $prepared = $wpdb->prepare($query, $related_links);
+                    $related_rows = $wpdb->get_results($prepared, ARRAY_A);
+
+                    // Build array of <a> links
+                    $related_links_output = array_map(function($row) {
+                        $title = esc_html($row['title']);
+                        $url = esc_url($row['link_url']);
+                        return "<a href=\"$url\" target=\"_blank\" rel=\"noopener\">$title</a>";
+                    }, $related_rows);
+
+                    $related_titles = implode('; ', $related_links_output);
+                }
+            }
+
+            echo '<td>' . $related_titles . '</td>';
+
+            // Get tags for this link
+            $tag_names = $wpdb->get_col(
+                $wpdb->prepare("
+                    SELECT t.name 
+                    FROM $tags_table t
+                    INNER JOIN $linktags_table lt ON t.tag_id = lt.tag_id
+                    WHERE lt.link_id = %d
+                    ORDER BY t.display_order ASC
+                ", $current_link_id)
+            );
+
+            $tag_output = '';
+            if (!empty($tag_names)) {
+                $tag_output = implode(', ', array_map('esc_html', $tag_names));
+            }
+
+            echo '<td>' . $tag_output . '</td>';
+
             echo '</tr>';
+
         }
 
         echo '</tbody></table>';

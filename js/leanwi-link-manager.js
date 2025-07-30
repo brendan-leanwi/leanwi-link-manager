@@ -11,10 +11,12 @@ jQuery(document).ready(function($) {
     let data = {
         action: 'leanwi_filter_links',
         nonce: $('input[name="nonce"]').val(),
-        'area_id[]': initial.area_id, // <-- notice 'area_id[]'
+        'area_id[]': initial.area_id, 
         'format_id[]': initial.format_id,
-        'tags[]': initial.tag_id,
-        featured_only: initial.featured_only
+        'tag_id[]': initial.tag_id,
+        initial_area_id: initial.area_id.join(','),
+        initial_format_id: initial.format_id.join(','),
+        initial_tag_id: initial.tag_id.join(','),
     };
 
     loadLinks(data);

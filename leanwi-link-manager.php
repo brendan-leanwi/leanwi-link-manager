@@ -20,8 +20,13 @@ require_once plugin_dir_path(__FILE__) . 'php/plugin/menu-functions.php';
 require_once plugin_dir_path(__FILE__) . 'php/plugin/schema.php'; 
 require_once plugin_dir_path(__FILE__) . 'php/plugin/plugin-updater.php';
 
+// links/table functionality files
 require_once plugin_dir_path(__FILE__) . 'php/frontend/links-list-shortcode.php';
 require_once plugin_dir_path(__FILE__) . 'php/frontend/ajax-list-handlers.php';
+
+// feed functionality files
+require_once plugin_dir_path(__FILE__) . 'php/frontend/links-feed-shortcode.php';
+
 
 // Hook to run when the plugin is activated
 register_activation_hook(__FILE__, __NAMESPACE__ . '\\leanwi_create_tables');
@@ -45,6 +50,7 @@ function leanwi_update_check() {
 add_action('admin_init', __NAMESPACE__ . '\\leanwi_update_check');
 
 function leanwi_lm_enqueue_scripts() {
+    // register list scripts
     wp_register_script(
         'leanwi-link-manager-ajax',
         plugin_dir_url(__FILE__) . 'js/leanwi-link-manager.js',
