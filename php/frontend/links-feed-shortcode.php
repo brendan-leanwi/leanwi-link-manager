@@ -10,11 +10,13 @@ function leanwi_link_feed_shortcode($atts) {
         'area_id'   => '',
         'format_id' => '',
         'tag_id'    => '',
+        'featured'  => '', // true, false, or empty
     ], $atts, 'link_manager_feed');
 
     $area_ids   = array_filter(array_map('intval', explode(',', $atts['area_id'])));
     $format_ids = array_filter(array_map('intval', explode(',', $atts['format_id'])));
     $tag_ids    = array_filter(array_map('intval', explode(',', $atts['tag_id'])));
+    $featured = strtolower(trim($atts['featured']));
 
     $links_table     = $wpdb->prefix . 'leanwi_lm_links';
     $areas_table     = $wpdb->prefix . 'leanwi_lm_program_area';
@@ -49,6 +51,12 @@ function leanwi_link_feed_shortcode($atts) {
         $placeholders = implode(',', array_fill(0, count($tag_ids), '%d'));
         $where[] = "lt.tag_id IN ($placeholders)";
         $params = array_merge($params, $tag_ids);
+    }
+
+    if ($featured === 'true') {
+        $where[] = "l.is_featured_link = 1";
+    } elseif ($featured === 'false') {
+        $where[] = "l.is_featured_link = 0";
     }
 
     if (!empty($where)) {
@@ -127,7 +135,8 @@ function leanwi_lm_get_related_links($link_id) {
             "SELECT l.link_id, l.title, l.link_url 
              FROM {$wpdb->prefix}leanwi_lm_related_links rl
              INNER JOIN {$wpdb->prefix}leanwi_lm_links l ON rl.link_id = l.link_id
-             WHERE rl.relationship_id = %d AND rl.link_id != %d",
+             WHERE rl.relationship_id = %d AND rl.link_id != %d
+             ORDER BY l.creation_date DESC",
             $relationship_id, $link_id
         )
     );
