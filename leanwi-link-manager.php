@@ -35,19 +35,19 @@ register_activation_hook(__FILE__, __NAMESPACE__ . '\\leanwi_lm_create_tables');
 register_uninstall_hook(__FILE__, __NAMESPACE__ . '\\leanwi_lm_drop_tables');
 
 // Version-based update check
-function leanwi_update_check() {
+function leanwi_lm_update_check() {
     $current_version = get_option('leanwi_link_manager_version', '0.0.0'); // Default to an old version if not set
     $new_version = '0.0.1'; // Update this with the new plugin version
 
     if (version_compare($current_version, $new_version, '<')) {
         // Run the table creation logic
-        leanwi_create_tables();
+        leanwi_lm_create_tables();
 
         // Update the version in the database
         update_option('leanwi_link_manager_version', $new_version);
     }
 }
-add_action('admin_init', __NAMESPACE__ . '\\leanwi_update_check');
+add_action('admin_init', __NAMESPACE__ . '\\leanwi_lm_update_check');
 
 function leanwi_lm_enqueue_scripts() {
     // register list scripts
