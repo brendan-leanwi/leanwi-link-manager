@@ -29,10 +29,10 @@ require_once plugin_dir_path(__FILE__) . 'php/frontend/links-feed-shortcode.php'
 
 
 // Hook to run when the plugin is activated
-register_activation_hook(__FILE__, __NAMESPACE__ . '\\leanwi_create_tables');
+register_activation_hook(__FILE__, __NAMESPACE__ . '\\leanwi_lm_create_tables');
 
 // Hook to run when the plugin is uninstalled
-register_uninstall_hook(__FILE__, __NAMESPACE__ . '\\leanwi_drop_tables');
+register_uninstall_hook(__FILE__, __NAMESPACE__ . '\\leanwi_lm_drop_tables');
 
 // Version-based update check
 function leanwi_update_check() {

@@ -2,7 +2,7 @@
 namespace LEANWI_Link_Manager;
 
 // Function to create the necessary tables on plugin activation
-function leanwi_create_tables() {
+function leanwi_lm_create_tables() {
     // Load WordPress environment to access $wpdb
     require_once $_SERVER['DOCUMENT_ROOT'] . '/wp-load.php';
 
@@ -132,7 +132,7 @@ function leanwi_create_tables() {
 
 
 // Function to drop the tables on plugin uninstall
-function leanwi_drop_tables() {
+function leanwi_lm_drop_tables() {
     global $wpdb;
 
     // SQL to drop the tables
