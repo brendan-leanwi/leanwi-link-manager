@@ -64,8 +64,11 @@ function leanwi_link_feed_shortcode($atts) {
     }
 
     $query .= " ORDER BY l.creation_date DESC";
-
     $prepared = $wpdb->prepare($query, $params);
+
+    error_log('Applied Filters (Feed): area_id=' . implode(',', $area_ids) . ' format_id=' . implode(',', $format_ids) . ' tags=' . implode(',', $tag_ids));
+    error_log($prepared);
+
     $results = $wpdb->get_results($prepared, ARRAY_A);
 
     if (empty($results)) {

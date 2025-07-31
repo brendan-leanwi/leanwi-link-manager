@@ -15,45 +15,19 @@ function leanwi_filter_links() {
     $linktags_table = $wpdb->prefix . 'leanwi_lm_linktags';
     $related_table = $wpdb->prefix . 'leanwi_lm_related_links';
 
-   // Fetch initial constraints
-    $initial_area_id = isset($_POST['initial_area_id']) ? array_map('intval', explode(',', $_POST['initial_area_id'])) : [];
-    $initial_format_id = isset($_POST['initial_format_id']) ? array_map('intval', explode(',', $_POST['initial_format_id'])) : [];
-    $initial_tag_id = isset($_POST['initial_tag_id']) ? array_map('intval', explode(',', $_POST['initial_tag_id'])) : [];
+    // Get and sanitize filter parameters
+    $initial_area_id = !empty($_POST['initial_area_id']) ? array_filter(array_map('intval', explode(',', $_POST['initial_area_id']))) : [];
+    $initial_format_id = !empty($_POST['initial_format_id']) ? array_filter(array_map('intval', explode(',', $_POST['initial_format_id']))) : [];
+    $initial_tag_id = !empty($_POST['initial_tag_id']) ? array_filter(array_map('intval', explode(',', $_POST['initial_tag_id']))) : [];
 
-    // Fetch current user input
-    $current_area_id = $_POST['area_id'] ?? '';
-    $current_format_id = $_POST['format_id'] ?? '';
-    $current_tag_id = $_POST['tag_id'] ?? '';
-
-    $current_area_id = is_array($current_area_id) ? $current_area_id : [$current_area_id];
-    $current_format_id = is_array($current_format_id) ? $current_format_id : [$current_format_id];
-    $current_tag_id = is_array($current_tag_id) ? $current_tag_id : [$current_tag_id];
-
-    // PROGRAM AREA FILTER CONSTRUCTION
-    $initial_area_id = isset($_POST['initial_area_id']) ? array_map('intval', explode(',', $_POST['initial_area_id'])) : [];
-    $current_area_raw = $_POST['area_id'] ?? '';
-    $current_area = is_array($current_area_raw) ? $current_area_raw : [$current_area_raw];
-    $current_area_id = array_filter(array_map('intval', $current_area));
-    $area_id = !empty($current_area_id) ? $current_area_id : $initial_area_id;
-
-    // FORMAT FILTER CONSTRUCTION
-    $initial_format_id = isset($_POST['initial_format_id']) ? array_map('intval', explode(',', $_POST['initial_format_id'])) : [];
-    $current_format_raw = $_POST['format_id'] ?? '';
-    $current_format = is_array($current_format_raw) ? $current_format_raw : [$current_format_raw];
-    $current_format_id = array_filter(array_map('intval', $current_format));
-    $format_id = !empty($current_format_id) ? $current_format_id : $initial_format_id;
-
-    // TAG FILTER CONSTRUCTION
-    $initial_tag_id = isset($_POST['initial_tag_id']) ? array_map('intval', explode(',', $_POST['initial_tag_id'])) : [];
-    $current_tag_raw = $_POST['tag_id'] ?? '';
-    $current_tag = is_array($current_tag_raw) ? $current_tag_raw : [$current_tag_raw];
-    $current_tag_id = array_filter(array_map('intval', $current_tag));
-    $tag_id = !empty($current_tag_id) ? $current_tag_id : $initial_tag_id;
-    /*
-    $initial_tag_id = isset($_POST['initial_tag_id']) ? array_map('intval', explode(',', $_POST['initial_tag_id'])) : [];
+    $current_area_id = isset($_POST['area_id']) ? array_filter(array_map('intval', (array) $_POST['area_id'])) : [];
+    $current_format_id = isset($_POST['format_id']) ? array_filter(array_map('intval', (array) $_POST['format_id'])) : [];
     $current_tag_id = isset($_POST['tag_id']) ? array_filter(array_map('intval', (array) $_POST['tag_id'])) : [];
+
+    // Final filter sets used in query
+    $area_id = !empty($current_area_id) ? $current_area_id : $initial_area_id;
+    $format_id = !empty($current_format_id) ? $current_format_id : $initial_format_id;
     $tag_id = !empty($current_tag_id) ? $current_tag_id : $initial_tag_id;
-    */
 
     $search = sanitize_text_field($_POST['search'] ?? '');
     $featured_only = (isset($_POST['featured_only']) && ($_POST['featured_only'] === '1' || $_POST['featured_only'] === 1)) ? 1 : 0;
