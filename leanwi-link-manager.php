@@ -27,6 +27,9 @@ require_once plugin_dir_path(__FILE__) . 'php/frontend/ajax-list-handlers.php';
 // feed functionality files
 require_once plugin_dir_path(__FILE__) . 'php/frontend/links-feed-shortcode.php';
 
+// featured functionality files
+require_once plugin_dir_path(__FILE__) . 'php/frontend/links-featured-shortcode.php';
+
 
 // Hook to run when the plugin is activated
 register_activation_hook(__FILE__, __NAMESPACE__ . '\\leanwi_lm_create_tables');

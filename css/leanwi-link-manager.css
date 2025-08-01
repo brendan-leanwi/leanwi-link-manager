@@ -1,3 +1,4 @@
+/* LIST CSS */
 #leanwi-link-manager-container {
     margin: 20px 0;
 }
@@ -13,6 +14,7 @@
     padding: 8px;
 }
 
+/* FEED CSS */
 .leanwi-link-feed {
     display: grid;
     gap: 1rem;
@@ -26,4 +28,19 @@
 }
 .leanwi-feed-item h3 {
     margin-top: 0;
+}
+
+/* FEATURED CSS */
+.leanwi-featured-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.leanwi-featured-item {
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background: #fff;
 }
