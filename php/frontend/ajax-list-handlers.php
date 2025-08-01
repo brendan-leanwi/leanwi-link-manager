@@ -107,7 +107,7 @@ function leanwi_filter_links() {
 
         foreach ($results as $link) {
             echo '<tr>';
-            echo '<td><a href="' . esc_url($link['link_url']) . '" target="_blank">' . esc_html($link['title']) . '</a></td>';
+            echo '<td><a href="' . esc_url($link['link_url']) . '" target="_blank" title="' . esc_attr($link['description']) . '">' . esc_html($link['title']) . '</a></td>';
             $display_date = new \DateTime($link['creation_date']);
             echo '<td>' . esc_html($display_date->format('F Y')) . '</td>';
             echo '<td>' . esc_html($link['area_name']) . '</td>';
@@ -137,7 +137,7 @@ function leanwi_filter_links() {
                     $placeholders = implode(',', array_fill(0, count($related_links), '%d'));
 
                     // Get both title and URL of related links
-                    $query = "SELECT title, link_url FROM $links_table WHERE link_id IN ($placeholders)";
+                    $query = "SELECT title, link_url, description FROM $links_table WHERE link_id IN ($placeholders)";
                     $prepared = $wpdb->prepare($query, $related_links);
                     $related_rows = $wpdb->get_results($prepared, ARRAY_A);
 
@@ -145,7 +145,8 @@ function leanwi_filter_links() {
                     $related_links_output = array_map(function($row) {
                         $title = esc_html($row['title']);
                         $url = esc_url($row['link_url']);
-                        return "<a href=\"$url\" target=\"_blank\" rel=\"noopener\">$title</a>";
+                        $desc = esc_attr($row['description']);
+                        return "<a href=\"$url\" target=\"_blank\" rel=\"noopener\" title=\"$desc\">$title</a>";
                     }, $related_rows);
 
                     $related_titles = implode('; ', $related_links_output);
