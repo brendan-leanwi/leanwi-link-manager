@@ -22,7 +22,7 @@ function leanwi_lm_add_admin_menu() {
         'Documentation',              // Menu title (this will be the first submenu item)
         'manage_options',             // Capability
         'leanwi-link-manager-main',    // Menu slug (reuse 'leanwi-link-manager-main' to link it to the parent page)
-        __NAMESPACE__ . '\\leanwi_main_page'            // Callback function (this will now display the Documentation page)
+        __NAMESPACE__ . '\\leanwi_lm_main_page'            // Callback function (this will now display the Documentation page)
     );
 
     // Sub-menu: "Manage Links"
@@ -146,6 +146,16 @@ function leanwi_lm_add_admin_menu() {
         __NAMESPACE__ . '\\leanwi_lm_edit_tag_page'
     );
 
+    // Sub-menu: "Edit Tag"
+    add_submenu_page(
+        'leanwi-link-manager-main',
+        'Delete Tag',
+        'Delete Tag',
+        'manage_options',
+        'leanwi-lm-delete-tag',
+        __NAMESPACE__ . '\\leanwi_lm_delete_tag_page'
+    );
+
 }
 
 
@@ -162,7 +172,8 @@ function leanwi_hide_add_edit_submenus_css() {
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-add-format"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-edit-format"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-add-tag"],
-        #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-edit-tag"] {
+        #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-edit-tag"],
+        #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-delete-tag"] {
             display: none !important;
         }
     </style>';
@@ -1298,7 +1309,8 @@ function leanwi_lm_tags_page() {
             echo '<td>' . esc_html($tag['name']) . '</td>';
             echo '<td>' . esc_html($tag['description']) . '</td>';
             echo '<td><input type="number" name="display_order[' . esc_attr($tag['tag_id']) . ']" value="' . esc_attr($tag['display_order']) . '" style="width:60px;"></td>';
-            echo '<td><a href="' . admin_url('admin.php?page=leanwi-lm-edit-tag&tag_id=' . $tag['tag_id']) . '" class="button">Edit</a></td>';
+            echo '<td><a href="' . admin_url('admin.php?page=leanwi-lm-edit-tag&tag_id=' . $tag['tag_id']) . '" class="button">Edit</a> ';
+             echo '<a href="' . admin_url('admin.php?page=leanwi-lm-delete-tag&tag_id=' . $tag['tag_id']) . '" class="button" onclick="return confirm(\'Are you sure you want to delete this tag?\');">Delete</a></td>';
             echo '</tr>';
         }
     } else {
@@ -1386,4 +1398,42 @@ function leanwi_lm_edit_tag_page() {
     } else {
         echo '<div class="error"><p>No tag ID provided.</p></div>';
     }
+}
+
+function leanwi_lm_delete_tag_page() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'leanwi_lm_tags';
+
+    // Get and validate ID
+    $tag_id = isset($_GET['tag_id']) ? intval($_GET['tag_id']) : 0;
+
+    if (!$tag_id) {
+        echo '<div class="notice notice-error"><p>Invalid tag ID.</p></div>';
+        return;
+    }
+
+    // Check if tag exists
+    $tag = $wpdb->get_row(
+        $wpdb->prepare("SELECT * FROM $table_name WHERE tag_id = %d", $tag_id)
+    );
+
+    if (!$tag) {
+        echo '<div class="notice notice-error"><p>Tag not found.</p></div>';
+        return;
+    }
+
+    // Perform the delete
+    $deleted = $wpdb->delete(
+        $table_name,
+        ['tag_id' => $tag_id],
+        ['%d']
+    );
+
+    if ($deleted) {
+        echo '<div class="notice notice-success"><p>Tag deleted successfully.</p></div>';
+    } else {
+        echo '<div class="notice notice-error"><p>Failed to delete tag.</p></div>';
+    }
+
+    echo '<p><a href="' . esc_url(admin_url('admin.php?page=leanwi-lm-tags')) . '" class="button">Back to Tags</a></p>';
 }
