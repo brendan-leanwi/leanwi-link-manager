@@ -1,7 +1,13 @@
 jQuery(document).ready(function($) {
     function loadLinks(formData) {
         $('#leanwi-link-manager-results').html('Loading...');
-        $.post(LEANWI_LINK_MANAGER_AJAX.ajax_url, formData, function(response) {
+
+        $.ajax({
+            type: 'POST',
+            url: LEANWI_LINK_MANAGER_AJAX.ajax_url,
+            data: formData, // now a string
+            dataType: 'html'
+        }).done(function(response) {
             $('#leanwi-link-manager-results').html(response);
         });
     }
@@ -17,6 +23,7 @@ jQuery(document).ready(function($) {
         initial_area_id: initial.area_id.join(','),
         initial_format_id: initial.format_id.join(','),
         initial_tag_id: initial.tag_id.join(','),
+        max_listings: initial.max_listings,
     };
 
     loadLinks(data);
@@ -24,8 +31,13 @@ jQuery(document).ready(function($) {
     // If you want to keep the filter form for later, keep this too:
     $('#leanwi-link-manager-form').on('submit', function(e) {
         e.preventDefault();
-        let data = $(this).serialize();
-        loadLinks(data);
+
+        // Use native FormData instead of serializeArray
+        let formData = $(this).serialize();
+
+        // Optionally, log to check
+        //console.log('Submitting with data:', formData);
+
+        loadLinks(formData);
     });
 });
-

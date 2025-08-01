@@ -11,6 +11,7 @@ function leanwi_link_feed_shortcode($atts) {
         'format_id' => '',
         'tag_id'    => '',
         'featured'  => '', // true, false, or empty
+        'max_listings' => '0',
     ], $atts, 'link_manager_feed');
 
     $area_ids   = array_filter(array_map('intval', explode(',', $atts['area_id'])));
@@ -66,13 +67,20 @@ function leanwi_link_feed_shortcode($atts) {
     $query .= " ORDER BY l.creation_date DESC";
     $prepared = $wpdb->prepare($query, $params);
 
-    error_log('Applied Filters (Feed): area_id=' . implode(',', $area_ids) . ' format_id=' . implode(',', $format_ids) . ' tags=' . implode(',', $tag_ids));
-    error_log($prepared);
+    //error_log('Applied Filters (Feed): area_id=' . implode(',', $area_ids) . ' format_id=' . implode(',', $format_ids) . ' tags=' . implode(',', $tag_ids));
+    //error_log($prepared);
 
     $results = $wpdb->get_results($prepared, ARRAY_A);
 
     if (empty($results)) {
         return '<p>No links found.</p>';
+    }
+
+    // Limit the number of results if max_listings > 0
+    $max_listings = intval($atts['max_listings']);
+    //error_log('Max listings: ' . $max_listings);
+    if ($max_listings > 0) {
+        $results = array_slice($results, 0, $max_listings);
     }
 
     ob_start();

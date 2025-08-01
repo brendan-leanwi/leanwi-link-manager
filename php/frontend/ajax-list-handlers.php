@@ -7,6 +7,8 @@ add_action('wp_ajax_nopriv_leanwi_filter_links', __NAMESPACE__ . '\\leanwi_filte
 function leanwi_filter_links() {
     check_ajax_referer('leanwi_filter_links', 'nonce');
 
+    //error_log('$_POST: ' . print_r($_POST, true));
+
     global $wpdb;
     $links_table = $wpdb->prefix . 'leanwi_lm_links';
     $areas_table = $wpdb->prefix . 'leanwi_lm_program_area';
@@ -31,6 +33,10 @@ function leanwi_filter_links() {
 
     $search = sanitize_text_field($_POST['search'] ?? '');
     $featured_only = (isset($_POST['featured_only']) && ($_POST['featured_only'] === '1' || $_POST['featured_only'] === 1)) ? 1 : 0;
+
+    $max_listings = isset($_POST['max_listings']) ? intval($_POST['max_listings']) : 0;
+
+    //error_log('Max listings received: ' . print_r($_POST['max_listings'], true));
 
     // Build base query
     $query = "
@@ -77,12 +83,18 @@ function leanwi_filter_links() {
     }
 
     $query .= " GROUP BY l.link_id ORDER BY l.creation_date DESC";
+    if ($max_listings > 0) {
+        $query .= " LIMIT %d";
+        $params[] = $max_listings;
+    }
 
     //Send query to debug.log
-    $prepared_query = $wpdb->prepare($query, $params);
+    /*
+    $debug_query = $wpdb->prepare($query, $params);
+    error_log('Max listings: ' . $max_listings);
     error_log('Applied Filters: area_id=' . implode(',', $area_id) . ' format_id=' . implode(',', $format_id) . ' tags=' . implode(',', $tag_id));
-    error_log($prepared_query);
-
+    error_log($debug_query);
+    */
     $results = $wpdb->get_results($wpdb->prepare($query, $params), ARRAY_A);
 
     // Build HTML output

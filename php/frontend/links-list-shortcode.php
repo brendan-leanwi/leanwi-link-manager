@@ -12,13 +12,17 @@ function leanwi_link_manager_shortcode($atts) {
         'area_id' => '',            // example: area_id="1,2"
         'tag_id' => '',             // example: tag_id="1,2"
         'format_id' => '',          // example: format_id="1,2"
+        'max_listings' => '0',      // Default to 0 = no limit
     ], $atts, 'link_manager_list');
 
+    //error_log('max-listings as passed: ' . intval($atts['max_listings']));
+    
     // Prepare initial filter data for JS
     $initial_filters = [
         'area_id' => array_filter(array_map('intval', explode(',', $atts['area_id']))),
         'tag_id' => array_filter(array_map('intval', explode(',', $atts['tag_id']))),
         'format_id' => array_filter(array_map('intval', explode(',', $atts['format_id']))),
+        'max_listings' => intval($atts['max_listings']),
     ];
 
     ob_start();
@@ -144,6 +148,7 @@ function leanwi_link_manager_shortcode($atts) {
                 <input type="hidden" name="initial_area_id" value="<?php echo esc_attr(implode(',', $initial_filters['area_id'])); ?>">
                 <input type="hidden" name="initial_tag_id" value="<?php echo esc_attr(implode(',', $initial_filters['tag_id'])); ?>">
                 <input type="hidden" name="initial_format_id" value="<?php echo esc_attr(implode(',', $initial_filters['format_id'])); ?>">
+                <input type="hidden" name="max_listings" value="<?php echo esc_attr((int)$atts['max_listings']); ?>">
             </form>
         </div>
 
@@ -151,8 +156,9 @@ function leanwi_link_manager_shortcode($atts) {
     </div>
 
     <script>
-    const LEANWI_LINK_MANAGER_INITIAL = <?php echo json_encode($initial_filters); ?>;
+        const LEANWI_LINK_MANAGER_INITIAL = <?php echo json_encode($initial_filters); ?>;
     </script>
+
     <?php
     return ob_get_clean();
 }
