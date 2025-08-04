@@ -605,7 +605,7 @@ function leanwi_lm_add_link_page() {
         ORDER BY l.creation_date DESC
     ", ARRAY_A);
 
-    echo '<p><strong>Relate to Existing Links:</strong> (Hold Ctrl/Cmd to select multiple)</p>';
+    echo '<p><strong>Relate to Existing Links:</strong> (Select one link to associate with that link or that link\'s group)</p>';
     echo '<input type="text" id="link-filter" placeholder="Filter by title or description..." style="width: 400px; margin-bottom: 10px;">';
     echo '<div style="overflow-x: auto; max-width: 100%;">';
     echo '<select name="related_links[]" id="related-links-select" multiple style="min-width: 960px; height: 300px;">';

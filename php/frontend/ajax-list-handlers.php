@@ -26,6 +26,9 @@ function leanwi_filter_links() {
     $current_format_id = isset($_POST['format_id']) ? array_filter(array_map('intval', (array) $_POST['format_id'])) : [];
     $current_tag_id = isset($_POST['tag_id']) ? array_filter(array_map('intval', (array) $_POST['tag_id'])) : [];
 
+    $start_date = !empty($_POST['start_date']) ? sanitize_text_field($_POST['start_date']) : '';
+    $end_date = !empty($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : '';
+
     // Final filter sets used in query
     $area_id = !empty($current_area_id) ? $current_area_id : $initial_area_id;
     $format_id = !empty($current_format_id) ? $current_format_id : $initial_format_id;
@@ -78,6 +81,16 @@ function leanwi_filter_links() {
         $params = array_merge($params, $tag_id);
     }
 
+    if ($start_date && preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_date)) {
+        $where[] = "l.creation_date >= %s";
+        $params[] = $start_date . ' 00:00:00';
+    }
+
+    if ($end_date && preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_date)) {
+        $where[] = "l.creation_date <= %s";
+        $params[] = $end_date . ' 23:59:59';
+    }
+
     if (!empty($where)) {
         $query .= " WHERE " . implode(" AND ", $where);
     }
@@ -109,7 +122,7 @@ function leanwi_filter_links() {
             echo '<tr>';
             echo '<td><a href="' . esc_url($link['link_url']) . '" target="_blank" title="' . esc_attr($link['description']) . '">' . esc_html($link['title']) . '</a></td>';
             $display_date = new \DateTime($link['creation_date']);
-            echo '<td>' . esc_html($display_date->format('F Y')) . '</td>';
+            echo '<td>' . esc_html($display_date->format('F j, Y')) . '</td>';
             echo '<td>' . esc_html($link['area_name']) . '</td>';
             echo '<td>' . esc_html($link['format_name']) . '</td>';
             

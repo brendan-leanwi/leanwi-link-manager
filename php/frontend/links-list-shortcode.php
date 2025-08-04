@@ -128,6 +128,14 @@ function leanwi_link_manager_shortcode($atts) {
                     </select>
                 </label>
 
+                <!-- Date Range Filters -->
+                <label>Start Date:
+                    <input type="date" name="start_date">
+                </label>
+                <label>End Date:
+                    <input type="date" name="end_date">
+                </label>
+
                 <!-- Tags Filter -->
                 <label>Tags:
                     <select name="tag_id" id="leanwi-tag-filter">
