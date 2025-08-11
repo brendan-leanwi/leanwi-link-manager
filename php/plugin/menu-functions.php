@@ -86,6 +86,16 @@ function leanwi_lm_add_admin_menu() {
         __NAMESPACE__ . '\\leanwi_lm_edit_program_area_page'
     );
 
+    // Sub-menu: "Delete Program Area"
+    add_submenu_page(
+        'leanwi-link-manager-main',
+        'Delete Program Area',
+        'Delete Program Area',
+        'manage_options',
+        'leanwi-lm-delete-program-area',
+        __NAMESPACE__ . '\\leanwi_lm_delete_program_area_page'
+    );
+
     // Sub-menu: "Formats"
     add_submenu_page(
         'leanwi-link-manager-main',    // Parent slug
@@ -114,6 +124,16 @@ function leanwi_lm_add_admin_menu() {
         'manage_options',             // Capability
         'leanwi-lm-edit-format',          // Menu slug
         __NAMESPACE__ . '\\leanwi_lm_edit_format_page'      // Callback function to display the edit venue form
+    );
+
+    // Sub-menu: "Delete Format"
+    add_submenu_page(
+        'leanwi-link-manager-main',
+        'Delete Format',
+        'Delete Format',
+        'manage_options',
+        'leanwi-lm-delete-format',
+        __NAMESPACE__ . '\\leanwi_lm_delete_format_page'
     );
 
     // Sub-menu: "Tags"
@@ -146,7 +166,7 @@ function leanwi_lm_add_admin_menu() {
         __NAMESPACE__ . '\\leanwi_lm_edit_tag_page'
     );
 
-    // Sub-menu: "Edit Tag"
+    // Sub-menu: "Delete Tag"
     add_submenu_page(
         'leanwi-link-manager-main',
         'Delete Tag',
@@ -169,8 +189,10 @@ function leanwi_hide_add_edit_submenus_css() {
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-edit-link"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-add-program-area"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-edit-program-area"],
+        #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-delete-program-area"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-add-format"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-edit-format"],
+        #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-delete-format"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-add-tag"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-edit-tag"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-delete-tag"] {
@@ -959,7 +981,10 @@ function leanwi_lm_program_areas_page() {
             echo '<td>' . esc_html($area['name']) . '</td>';
             echo '<td>' . esc_html($area['description']) . '</td>';
             echo '<td><input type="number" name="display_order[' . esc_attr($area['area_id']) . ']" value="' . esc_attr($area['display_order']) . '" style="width:60px;"></td>';
-            echo '<td><a href="' . admin_url('admin.php?page=leanwi-lm-edit-program-area&area_id=' . $area['area_id']) . '" class="button">Edit</a></td>';
+            echo '<td>';
+            echo '<a href="' . admin_url('admin.php?page=leanwi-lm-edit-program-area&area_id=' . $area['area_id']) . '" class="button" style="margin-right:8px;">Edit</a>';
+            echo '<a href="' . admin_url('admin.php?page=leanwi-lm-delete-program-area&area_id=' . $area['area_id']) . '" class="button" onclick="return confirm(\'Are you sure you want to delete this program area?\');">Delete</a></td>';
+            echo '</td>';
             echo '</tr>';
         }
     } else {
@@ -970,6 +995,56 @@ function leanwi_lm_program_areas_page() {
     echo '<p><input type="submit" name="save_display_order" value="Save Display Order" class="button button-primary"></p>';
     echo '</form>';
     echo '</div>';
+}
+
+function leanwi_lm_delete_program_area_page() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'leanwi_lm_program_area';
+    $links_table = $wpdb->prefix . 'leanwi_lm_links';
+
+    // Get and validate ID
+    $area_id = isset($_GET['area_id']) ? intval($_GET['area_id']) : 0;
+
+    if (!$area_id) {
+        echo '<div class="notice notice-error"><p>Invalid area ID.</p></div>';
+        return;
+    }
+
+    // Check if tag exists
+    $area = $wpdb->get_row(
+        $wpdb->prepare("SELECT * FROM $table_name WHERE area_id = %d", $area_id)
+    );
+
+    if (!$area) {
+        echo '<div class="notice notice-error"><p>Area not found.</p></div>';
+        return;
+    }
+
+    // Check if any links are using this area_id
+    $link_count = $wpdb->get_var(
+        $wpdb->prepare("SELECT COUNT(*) FROM $links_table WHERE area_id = %d", $area_id)
+    );
+
+    if ($link_count > 0) {
+        echo '<div class="notice notice-error"><p>This Program Area cannot be deleted because it is assigned to ' . intval($link_count) . ' link(s).</p></div>';
+        echo '<p><a href="' . esc_url(admin_url('admin.php?page=leanwi-lm-program-areas')) . '" class="button">Back to Program Areas</a></p>';
+        return;
+    }
+
+    // Perform the delete
+    $deleted = $wpdb->delete(
+        $table_name,
+        ['area_id' => $area_id],
+        ['%d']
+    );
+
+    if ($deleted) {
+        echo '<div class="notice notice-success"><p>Program Area deleted successfully.</p></div>';
+    } else {
+        echo '<div class="notice notice-error"><p>Failed to delete program area.</p></div>';
+    }
+
+    echo '<p><a href="' . esc_url(admin_url('admin.php?page=leanwi-lm-program-areas')) . '" class="button">Back to Program Areas</a></p>';
 }
 
 function leanwi_lm_add_program_area_page() {
@@ -1112,7 +1187,8 @@ function leanwi_lm_formats_page() {
             echo '<td><input type="number" name="display_order[' . esc_attr($format['format_id']) . ']" value="' . esc_attr($format['display_order']) . '" style="width: 60px;"></td>';
             echo '<td>' . ($format['use_icon'] ? 'Yes' : 'No') . '</td>';
             echo '<td>';
-            echo '<a href="' . esc_url(admin_url('admin.php?page=leanwi-lm-edit-format&format_id=' . esc_attr($format['format_id']))) . '" class="button">Edit</a> ';
+            echo '<a href="' . esc_url(admin_url('admin.php?page=leanwi-lm-edit-format&format_id=' . esc_attr($format['format_id']))) . '" class="button" style="margin-right:8px;">Edit</a> ';
+            echo '<a href="' . admin_url('admin.php?page=leanwi-lm-delete-format&format_id=' . $format['format_id']) . '" class="button" onclick="return confirm(\'Are you sure you want to delete this format?\');">Delete</a></td>';
             echo '</td>';
             echo '</tr>';
         }
@@ -1140,6 +1216,56 @@ function fetch_formats() {
     } else {
         return ['formats' => $formats];
     }
+}
+
+function leanwi_lm_delete_format_page() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'leanwi_lm_formats';
+    $links_table = $wpdb->prefix . 'leanwi_lm_links';
+
+    // Get and validate ID
+    $format_id = isset($_GET['format_id']) ? intval($_GET['format_id']) : 0;
+
+    if (!$format_id) {
+        echo '<div class="notice notice-error"><p>Invalid format ID.</p></div>';
+        return;
+    }
+
+    // Check if format exists
+    $format = $wpdb->get_row(
+        $wpdb->prepare("SELECT * FROM $table_name WHERE format_id = %d", $format_id)
+    );
+
+    if (!$format) {
+        echo '<div class="notice notice-error"><p>Format not found.</p></div>';
+        return;
+    }
+
+    // Check if any links are using this area_id
+    $link_count = $wpdb->get_var(
+        $wpdb->prepare("SELECT COUNT(*) FROM $links_table WHERE format_id = %d", $format_id)
+    );
+
+    if ($link_count > 0) {
+        echo '<div class="notice notice-error"><p>This Format cannot be deleted because it is assigned to ' . intval($link_count) . ' link(s).</p></div>';
+        echo '<p><a href="' . esc_url(admin_url('admin.php?page=leanwi-lm-formats')) . '" class="button">Back to Formats</a></p>';
+        return;
+    }
+
+    // Perform the delete
+    $deleted = $wpdb->delete(
+        $table_name,
+        ['format_id' => $format_id],
+        ['%d']
+    );
+
+    if ($deleted) {
+        echo '<div class="notice notice-success"><p>Format deleted successfully.</p></div>';
+    } else {
+        echo '<div class="notice notice-error"><p>Failed to delete format.</p></div>';
+    }
+
+    echo '<p><a href="' . esc_url(admin_url('admin.php?page=leanwi-lm-formats')) . '" class="button">Back to Formats</a></p>';
 }
 
 function leanwi_lm_add_format_page() {
@@ -1310,7 +1436,7 @@ function leanwi_lm_tags_page() {
             echo '<td>' . esc_html($tag['description']) . '</td>';
             echo '<td><input type="number" name="display_order[' . esc_attr($tag['tag_id']) . ']" value="' . esc_attr($tag['display_order']) . '" style="width:60px;"></td>';
             echo '<td><a href="' . admin_url('admin.php?page=leanwi-lm-edit-tag&tag_id=' . $tag['tag_id']) . '" class="button">Edit</a> ';
-             echo '<a href="' . admin_url('admin.php?page=leanwi-lm-delete-tag&tag_id=' . $tag['tag_id']) . '" class="button" onclick="return confirm(\'Are you sure you want to delete this tag?\');">Delete</a></td>';
+            echo '<a href="' . admin_url('admin.php?page=leanwi-lm-delete-tag&tag_id=' . $tag['tag_id']) . '" class="button" onclick="return confirm(\'Are you sure you want to delete this tag?\');">Delete</a></td>';
             echo '</tr>';
         }
     } else {
