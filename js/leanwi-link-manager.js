@@ -1,4 +1,5 @@
 jQuery(document).ready(function($) {
+
     function loadLinks(formData) {
         $('#leanwi-link-manager-results').html('Loading...');
 

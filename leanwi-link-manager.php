@@ -5,14 +5,14 @@ Plugin Name:  LEANWI Link Manager
 GitHub URI:   https://github.com/brendan-leanwi/leanwi-link-manager
 Update URI:   https://github.com/brendan-leanwi/leanwi-link-manager
 Description:  Functionality for managing and displaying links to resources via a table for LEANWI Divi WordPress websites
-Version:      0.0.5
+Version:      0.0.6
 Author:       Brendan Tuckey
 Author URI:   https://github.com/brendan-leanwi
 License:      GPL2
 License URI:  https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain:  leanwi-tutorial
 Domain Path:  /languages
-Tested up to: 6.8.1
+Tested up to: 6.8.2
 */
 
 // plugin functionality php files
@@ -40,7 +40,7 @@ register_uninstall_hook(__FILE__, __NAMESPACE__ . '\\leanwi_lm_drop_tables');
 // Version-based update check
 function leanwi_lm_update_check() {
     $current_version = get_option('leanwi_link_manager_version', '0.0.1'); // Default to an old version if not set
-    $new_version = '0.0.5'; // Update this with the new plugin version
+    $new_version = '0.0.6'; // Update this with the new plugin version
 
     if (version_compare($current_version, $new_version, '<')) {
         // Run the table creation logic
@@ -54,18 +54,27 @@ add_action('admin_init', __NAMESPACE__ . '\\leanwi_lm_update_check');
 
 function leanwi_lm_enqueue_scripts() {
     // register list scripts
-    wp_register_script(
+    wp_enqueue_script(
         'leanwi-link-manager-ajax',
         plugin_dir_url(__FILE__) . 'js/leanwi-link-manager.js',
         ['jquery'],
         '1.0',
         true
     );
+
+    wp_enqueue_script(
+        'leanwi-link-related-resources-js',
+        plugin_dir_url(__FILE__) . 'js/leanwi-link-related-resources.js',
+        array('jquery'),
+        filemtime(plugin_dir_path(__FILE__) . 'js/leanwi-link-related-resources.js'), // Version based on file modification time
+        true
+    );
+
     wp_localize_script('leanwi-link-manager-ajax', 'LEANWI_LINK_MANAGER_AJAX', [
         'ajax_url' => admin_url('admin-ajax.php'),
     ]);
 
-    wp_register_style(
+    wp_enqueue_style(
         'leanwi-link-manager-style',
         plugin_dir_url(__FILE__) . 'css/leanwi-link-manager.css',
         [],

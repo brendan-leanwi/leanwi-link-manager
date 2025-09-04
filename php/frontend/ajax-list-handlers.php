@@ -115,59 +115,22 @@ function leanwi_filter_links() {
         echo '<p>No links found.</p>';
     } else {
         echo '<table><thead><tr>';
-        echo '<th>Title</th><th>Date</th><th>Program Area</th><th>Format</th><th>Related Links</th><th>Tags</th>';
+        echo '<th>Date</th><th>Title</th><th>Format</th><th>Description</th><th>Program Area</th><th>Tags</th><th>Related Links</th>';
         echo '</tr></thead><tbody>';
 
         foreach ($results as $link) {
-            echo '<tr>';
-            echo '<td><a href="' . esc_url($link['link_url']) . '" target="_blank" title="' . esc_attr($link['description']) . '">' . esc_html($link['title']) . '</a></td>';
-            $display_date = new \DateTime($link['creation_date']);
-            echo '<td>' . esc_html($display_date->format('F j, Y')) . '</td>';
-            echo '<td>' . esc_html($link['area_name']) . '</td>';
-            echo '<td>' . esc_html($link['format_name']) . '</td>';
-            
             // Get related link titles
             $current_link_id = (int)$link['link_id'];
-
-            // First, get the relationship_id for this link
-            $relationship_id = $wpdb->get_var(
-                $wpdb->prepare("SELECT relationship_id FROM $related_table WHERE link_id = %d", $current_link_id)
-            );
-
-            $related_titles = '';
-
-            if ($relationship_id) {
-                // Get all other link_ids in this relationship group (excluding current)
-                $related_links = $wpdb->get_col(
-                    $wpdb->prepare("
-                        SELECT link_id FROM $related_table 
-                        WHERE relationship_id = %d AND link_id != %d
-                    ", $relationship_id, $current_link_id)
-                );
-
-                if (!empty($related_links)) {
-                    // Prepare placeholders for IN clause
-                    $placeholders = implode(',', array_fill(0, count($related_links), '%d'));
-
-                    // Get both title and URL of related links
-                    $query = "SELECT title, link_url, description FROM $links_table WHERE link_id IN ($placeholders)";
-                    $prepared = $wpdb->prepare($query, $related_links);
-                    $related_rows = $wpdb->get_results($prepared, ARRAY_A);
-
-                    // Build array of <a> links
-                    $related_links_output = array_map(function($row) {
-                        $title = esc_html($row['title']);
-                        $url = esc_url($row['link_url']);
-                        $desc = esc_attr($row['description']);
-                        return "<a href=\"$url\" target=\"_blank\" rel=\"noopener\" title=\"$desc\">$title</a>";
-                    }, $related_rows);
-
-                    $related_titles = implode('; ', $related_links_output);
-                }
-            }
-
-            echo '<td>' . $related_titles . '</td>';
-
+            
+            echo '<tr>';
+            $display_date = new \DateTime($link['creation_date']);
+            echo '<td>' . esc_html($display_date->format('F j, Y')) . '</td>';
+            echo '<td><a href="' . esc_url($link['link_url']) . '" target="_blank" title="' . esc_attr($link['description']) . '">' . esc_html($link['title']) . '</a></td>';
+            
+            echo '<td>' . esc_html($link['format_name']) . '</td>';
+            echo '<td>' . esc_html($link['description']) . '</td>';
+            echo '<td>' . esc_html($link['area_name']) . '</td>';
+            
             // Get tags for this link
             $tag_names = $wpdb->get_col(
                 $wpdb->prepare("
@@ -186,12 +149,58 @@ function leanwi_filter_links() {
 
             echo '<td>' . $tag_output . '</td>';
 
+            // First, get the relationship_id for this link
+            $relationship_id = $wpdb->get_var(
+                $wpdb->prepare("SELECT relationship_id FROM $related_table WHERE link_id = %d", $current_link_id)
+            );
+
+            $related_titles = '';
+
+            if ($relationship_id) {
+                $related_links = $wpdb->get_col(
+                    $wpdb->prepare("
+                        SELECT link_id FROM $related_table 
+                        WHERE relationship_id = %d AND link_id != %d
+                    ", $relationship_id, $current_link_id)
+                );
+
+                if (!empty($related_links)) {
+                    $placeholders = implode(',', array_fill(0, count($related_links), '%d'));
+                    $query = "SELECT title, link_url, description FROM $links_table WHERE link_id IN ($placeholders)";
+                    $prepared = $wpdb->prepare($query, $related_links);
+                    $related_rows = $wpdb->get_results($prepared, ARRAY_A);
+
+                    // Build hidden modal content
+                    $list_items = '';
+                    foreach ($related_rows as $row) {
+                        $title = esc_html($row['title']);
+                        $url   = esc_url($row['link_url']);
+                        $desc  = esc_attr($row['description']);
+                        $list_items .= "<li><a href=\"$url\" target=\"_blank\" rel=\"noopener\" title=\"$desc\">$title</a></li>";
+                    }
+
+                    $count = count($related_rows);
+                    $count = count($related_rows);
+
+                    $related_titles = 
+                        "<a href=\"javascript:void(0);\" 
+                            class=\"related-resources-link\" 
+                            data-related='" . json_encode($related_rows, JSON_HEX_APOS | JSON_HEX_QUOT) . "'>
+                            $count related resource" . ($count > 1 ? 's' : '') . "
+                        </a>";
+                }
+            }
+
+            echo '<td>' . $related_titles . '</td>';
             echo '</tr>';
 
         }
 
         echo '</tbody></table>';
+
     }
 
     wp_die();
 }
+?>
+
