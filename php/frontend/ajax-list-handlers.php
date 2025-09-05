@@ -202,5 +202,3 @@ function leanwi_filter_links() {
 
     wp_die();
 }
-?>
-
