@@ -37,6 +37,7 @@ function leanwi_lm_create_tables() {
         description TEXT,
         format_id INT,
         is_featured_link TINYINT(1) DEFAULT 0,
+        revise_date DATETIME NULL,
         FOREIGN KEY (area_id) REFERENCES {$wpdb->prefix}leanwi_lm_program_area(area_id) ON DELETE CASCADE,
         FOREIGN KEY (format_id) REFERENCES {$wpdb->prefix}leanwi_lm_formats(format_id) ON DELETE SET NULL
     ) $engine $charset_collate;";
@@ -127,6 +128,36 @@ function leanwi_lm_create_tables() {
         }
     } catch (Exception $e) {
         error_log($e->getMessage());
+    }
+
+    // Define the table name
+    $table_name = $wpdb->prefix . 'leanwi_lm_links';
+
+    // Check if the 'revise_date' column exists
+    $column_exists = $wpdb->get_results(
+        $wpdb->prepare(
+            "SHOW COLUMNS FROM $table_name LIKE %s",
+            'revise_date'
+        )
+    );
+
+    if (count($column_exists) === 0) {
+        error_log("revise_date column does not exist in $table_name");
+        // Add the revise_date 
+        $result =  $wpdb->query(
+            "ALTER TABLE $table_name 
+             ADD COLUMN revise_date DATETIME NULL"
+        );
+
+        if ($result !== false) {
+            $wpdb->query("UPDATE $table_name 
+                          SET revise_date = creation_date + INTERVAL 6 MONTH 
+                          WHERE revise_date IS NULL");
+        }
+
+        if ($result === false) {
+            error_log("Failed to add new column to $table_name: " . $wpdb->last_error);
+        }
     }
 }
 

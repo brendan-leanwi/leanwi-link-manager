@@ -148,8 +148,8 @@ function leanwi_link_manager_shortcode($atts) {
                 <label>Keyword:
                     <input type="text" name="search">
                 </label>
-
                 <button type="submit">Refine List</button>
+                <button type="button" id="leanwi-clear-filters">Clear Filters</button>
 
                 <input type="hidden" name="action" value="leanwi_filter_links">
                 <input type="hidden" name="nonce" value="<?php echo esc_attr(wp_create_nonce('leanwi_filter_links')); ?>">
@@ -166,6 +166,32 @@ function leanwi_link_manager_shortcode($atts) {
     <script>
         const LEANWI_LINK_MANAGER_INITIAL = <?php echo json_encode($initial_filters); ?>;
     </script>
+
+    <script>
+        document.getElementById('leanwi-clear-filters').addEventListener('click', function() {
+            const form = document.getElementById('leanwi-link-manager-form');
+
+            // Reset select dropdowns
+            const areaSelect = form.querySelector('select[name="area_id"]');
+            const formatSelect = form.querySelector('select[name="format_id"]');
+            const tagSelect = form.querySelector('select[name="tag_id"]');
+
+            areaSelect.value = form.querySelector('input[name="initial_area_id"]').value || '';
+            formatSelect.value = form.querySelector('input[name="initial_format_id"]').value || '';
+            tagSelect.value = form.querySelector('input[name="initial_tag_id"]').value || '';
+
+            // Reset date inputs
+            form.querySelector('input[name="start_date"]').value = '';
+            form.querySelector('input[name="end_date"]').value = '';
+
+            // Reset keyword search
+            form.querySelector('input[name="search"]').value = '';
+
+            // Submit the form automatically to refresh results
+            form.submit();
+        });
+    </script>
+
 
     <?php
     return ob_get_clean();

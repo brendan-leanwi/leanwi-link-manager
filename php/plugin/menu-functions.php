@@ -176,6 +176,16 @@ function leanwi_lm_add_admin_menu() {
         __NAMESPACE__ . '\\leanwi_lm_delete_tag_page'
     );
 
+    // Sub-menu: "Reports"
+    add_submenu_page(
+        'leanwi-link-manager-main',    // Parent slug
+        'Reports',                   // Page title
+        'Reporting',                   // Menu title
+        'manage_options',             // Capability
+        'leanwi-lm-reports',// Menu slug
+        __NAMESPACE__ . '\\leanwi_lm_reports_page'        // Callback function to display the reports page
+    );
+
 }
 
 
@@ -283,9 +293,9 @@ function leanwi_lm_manager_links_page() {
 
     echo '<table class="form-table"><tbody>';
 
-    // Date Range
+    // Creation Date Range
     echo '<tr>';
-    echo '<th scope="row">Date Range</th>';
+    echo '<th scope="row">Creation Date Range</th>';
     echo '<td>';
     echo 'From: <input type="date" name="start_date" value="' . esc_attr($_GET['start_date'] ?? '') . '"> ';
     echo 'To: <input type="date" name="end_date" value="' . esc_attr($_GET['end_date'] ?? '') . '">';
@@ -326,6 +336,15 @@ function leanwi_lm_manager_links_page() {
     echo '<td>';
     $featured_checked = (!empty($_GET['is_featured_link'])) ? 'checked' : '';
     echo '<label><input type="checkbox" name="is_featured_link" value="1" ' . $featured_checked . '> Show only featured links</label>';
+    echo '</td>';
+    echo '</tr>';
+
+    // Past Revise Date checkbox
+    echo '<tr>';
+    echo '<th scope="row">Past Revise Date</th>';
+    echo '<td>';
+    $past_revise_date_checked = (!empty($_GET['past_revised_date'])) ? 'checked' : '';
+    echo '<label><input type="checkbox" name="past_revised_date" value="1" ' . $past_revise_date_checked . '> Show links past their revise date</label>';
     echo '</td>';
     echo '</tr>';
 
@@ -399,6 +418,11 @@ function leanwi_lm_manager_links_page() {
     // Featured Links filter
     if (!empty($_GET['is_featured_link'])) {
         $where[] = "l.is_featured_link = 1";
+    }
+
+    // Revise date past filter
+    if (!empty($_GET['past_revised_date'])) {
+        $where[] = "l.revise_date <= CURRENT_TIMESTAMP";
     }
 
     // Keyword search filter
@@ -482,6 +506,7 @@ function leanwi_lm_manager_links_page() {
     ?>
     <script type="text/javascript">
         document.addEventListener('DOMContentLoaded', function() {
+            //Confirm Delete links
             const deleteLinks = document.querySelectorAll('.delete-link');
             deleteLinks.forEach(function(link) {
                 link.addEventListener('click', function(event) {
@@ -490,6 +515,14 @@ function leanwi_lm_manager_links_page() {
                     }
                 });
             });
+
+            // Show busy cursor when "Show Filtered List" button is clicked
+            const filterForm = document.querySelector('form[method="GET"]');
+            if (filterForm) {
+                filterForm.addEventListener('submit', function() {
+                    document.body.style.cursor = 'wait';
+                });
+            }
         });
     </script>
     <?php
@@ -518,6 +551,18 @@ function leanwi_lm_add_link_page() {
             ? sanitize_text_field($_POST['creation_date']) . ' 00:00:00'
             : current_time('mysql');
 
+        // Handle revise_date input
+        if (!empty($_POST['revise_date'])) {
+            // use the chosen date (force midnight for consistency)
+            $revise_date = sanitize_text_field($_POST['revise_date']) . ' 00:00:00';
+        } else {
+            // default: 6 months from current time
+            $revise_date = date(
+                'Y-m-d',
+                strtotime('+6 months', current_time('timestamp'))
+            ) . ' 00:00:00';
+        }
+
         $wpdb->insert(
             $links_table,
             [
@@ -527,9 +572,10 @@ function leanwi_lm_add_link_page() {
                 'description' => $description,
                 'format_id' => $format_id,
                 'is_featured_link' => $is_featured_link,
-                'creation_date' => $creation_date
+                'creation_date' => $creation_date,
+                'revise_date' => $revise_date
             ],
-            ['%d', '%s', '%s', '%s', '%d', '%d', '%s']
+            ['%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s']
         );
 
         $link_id = $wpdb->insert_id;
@@ -605,6 +651,10 @@ function leanwi_lm_add_link_page() {
     echo '<p>Title: <input type="text" name="title" required style="width:400px;"></p>';
     echo '<p>Description: <input type="text" name="description" style="width:600px;"></p>';
     echo '<p>Creation Date: <input type="date" name="creation_date" value="' . esc_attr($today_date) . '"></p>';
+
+    // Revise Date input
+    echo '<p>Revise Date: <input type="date" name="revise_date">(Defaults to +6 Months from today if left blank)</p>';
+
     echo '<p><label><input type="checkbox" name="is_featured_link"> Mark as Featured Link</label></p>';
 
     // Tags
@@ -704,6 +754,18 @@ function leanwi_lm_edit_link_page() {
             $creation_date = current_time('mysql');
         }
 
+        // Handle revise_date input
+        if (!empty($_POST['revise_date'])) {
+            // use the chosen date (force midnight for consistency)
+            $revise_date = sanitize_text_field($_POST['revise_date']) . ' 00:00:00';
+        } else {
+            // default: 6 months from current time
+            $revise_date = date(
+                'Y-m-d',
+                strtotime('+6 months', current_time('timestamp'))
+            ) . ' 00:00:00';
+        }
+
         // Update the link record
         $wpdb->update(
             $links_table,
@@ -714,10 +776,11 @@ function leanwi_lm_edit_link_page() {
                 'description' => $description,
                 'format_id' => $format_id,
                 'is_featured_link' => $is_featured_link,
-                'creation_date' => $creation_date
+                'creation_date' => $creation_date,
+                'revise_date' => $revise_date
             ],
             ['link_id' => $link_id],
-            ['%d', '%s', '%s', '%s', '%d', '%d', '%s'],
+            ['%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s'],
             ['%d']
         );
 
@@ -870,6 +933,10 @@ function leanwi_lm_edit_link_page() {
     // Creation Date input
     $creation_date = (!empty($link['creation_date'])) ? date('Y-m-d', strtotime($link['creation_date'])) : date('Y-m-d');
     echo '<p>Creation Date: <input type="date" name="creation_date" value="' . esc_attr($creation_date) . '"></p>';
+
+    // Revise Date input
+    $revise_date = (!empty($link['revise_date'])) ? date('Y-m-d', strtotime($link['revise_date'])) : date('Y-m-d');
+    echo '<p>Revise Date: <input type="date" name="revise_date" value="' . esc_attr($revise_date) . '">(Defaults to +6 Months from today if left blank)</p>';
 
     // Featured Link checkbox
     echo '<p><label><input type="checkbox" name="is_featured_link" ' . checked($link['is_featured_link'], 1, false) . '> Mark as Featured Link</label></p>';
@@ -1563,3 +1630,150 @@ function leanwi_lm_delete_tag_page() {
 
     echo '<p><a href="' . esc_url(admin_url('admin.php?page=leanwi-lm-tags')) . '" class="button">Back to Tags</a></p>';
 }
+
+/**************************************************************************************************
+ * Reporting
+ **************************************************************************************************/
+
+// Function to display the reporting functionality
+function leanwi_lm_reports_page() {
+    // Define the directory path for reports
+    $upload_dir = wp_upload_dir();
+    $reports_dir = $upload_dir['basedir'] . '/leanwi_lm_reports/';
+    
+    // Get report files
+    $report_files = glob($reports_dir . '*.csv');
+    $report_count = count($report_files);
+
+    ?>
+    <div class="wrap">
+        <h1>Reports</h1>
+
+        <!-- Generate Report Form -->
+        <form id="leanwi-revise-links-report-form" method="post"
+              action="<?php echo plugins_url('leanwi-link-manager/php/plugin/generate-revise-links-report.php'); ?>">
+            <h2>Links Revision Reporting</h2>
+            <?php wp_nonce_field('leanwi_generate_report', 'leanwi_generate_report_nonce'); ?>
+            <div class="form-row">
+                <input type="submit" value="Generate Revise Links Report" class="button button-primary">
+            </div>
+        </form>
+
+        <hr>
+
+        <!-- Purge Reports -->
+        <div class="purge-reports-section">
+            <p>You currently have <?php echo esc_html($report_count); ?> reports sitting on the server.</p>
+            <form id="leanwi-purge-reports-form">
+                <input type="submit" value="Purge Old Reports" class="button button-secondary">
+            </form>
+            <script>
+                document.getElementById("leanwi-purge-reports-form").addEventListener("submit", function(e) {
+                    e.preventDefault();
+                    if (!confirm("Are you sure you want to purge all old reports?")) return;
+
+                    fetch("<?php echo admin_url('admin-ajax.php'); ?>?action=leanwi_lm_purge_reports", {
+                        method: "POST",
+                        credentials: "same-origin",
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert("Reports purged successfully.");
+                            document.querySelector(".purge-reports-section p").innerText =
+                                `You currently have ${data.data.report_count} reports sitting on the server.`;
+                        } else {
+                            alert("Error purging reports.");
+                        }
+                    })
+                    .catch(err => console.error(err));
+                });
+            </script>
+
+        </div>
+    </div>
+
+    <script type="text/javascript">
+    // After the user downloads the CSV, update the report count
+    document.getElementById("leanwi-revise-links-report-form").addEventListener("submit", function(e) {
+        const form = this;
+        const submitButton = form.querySelector("input[type='submit']");
+        submitButton.disabled = true;
+
+        // Let the browser handle the actual form submission (file download)
+        setTimeout(() => {
+            // After a short delay, fetch updated report count
+            fetch("<?php echo admin_url('admin-ajax.php'); ?>?action=leanwi_lm_get_report_count", {
+                method: "GET",
+                credentials: "same-origin",
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.querySelector(".purge-reports-section p").innerText =
+                        `You currently have ${data.data.report_count} reports sitting on the server.`;
+                }
+            })
+            .catch(err => console.error(err))
+            .finally(() => submitButton.disabled = false);
+        }, 1000); // 1 second delay to allow download to trigger
+    });
+    </script>
+
+    <style>
+        .form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .purge-reports-section {
+            margin-top: 20px;
+        }
+    </style>
+    <?php
+}
+
+// Handle report purge action via AJAX
+function leanwi_lm_purge_reports() {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Unauthorized', 403);
+    }
+
+    $upload_dir = wp_upload_dir();
+    $reports_dir = $upload_dir['basedir'] . '/leanwi_lm_reports/';
+
+    $report_files = glob($reports_dir . '*.csv');
+    foreach ($report_files as $file) {
+        if (is_file($file)) {
+            unlink($file);
+        }
+    }
+
+    $remaining = count(glob($reports_dir . '*.csv'));
+    wp_send_json_success(['report_count' => $remaining]);
+}
+add_action('wp_ajax_leanwi_lm_purge_reports', __NAMESPACE__ . '\\leanwi_lm_purge_reports');
+
+
+
+// AJAX handler for fetching updated report count
+function leanwi_lm_get_report_count() {
+    // Check if the user has the required permissions
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Unauthorized', 403);
+    }
+
+    // Get the directory path for reports
+    $upload_dir = wp_upload_dir();
+    $reports_dir = $upload_dir['basedir'] . '/leanwi_lm_reports/';
+    
+    // Count the reports
+    $report_files = glob($reports_dir . '*.csv');
+    $report_count = count($report_files);
+
+    // Return the count
+    wp_send_json_success(['report_count' => $report_count]);
+}
+add_action('wp_ajax_leanwi_lm_get_report_count', __NAMESPACE__ . '\\leanwi_lm_get_report_count');
+
+
