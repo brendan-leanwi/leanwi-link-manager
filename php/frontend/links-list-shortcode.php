@@ -109,62 +109,79 @@ function leanwi_link_manager_shortcode($atts) {
 
     ?>
     <div id="leanwi-link-manager-container">
-        <div id="leanwi-link-manager-filters">
-            <h3>Refine Links Search</h3>
-            <form id="leanwi-link-manager-form">
-                <!-- Program Area Filter -->
-                <label>Program Area:
-                    <select name="area_id" id="related-links-filter">
-                        <option value="" <?php echo empty($area_filter_ids) ? 'selected' : ''; ?>>All</option>
-                        <?php echo $area_options; ?>
-                    </select>
-                </label>
+        <div id="leanwi-link-manager-filters" class="leanwi-lm-filter-panel">
+            <div class="leanwi-lm-filter-panel__header">
+                <h3>Refine Links</h3>
+                <p>Use the filters below to narrow the list by area, format, date, tag, or keyword.</p>
+            </div>
 
-                <!-- Format Filter -->
-                <label>Format:
-                    <select name="format_id" id="leanwi-format-filter">
-                        <option value="" <?php echo empty($format_filter_ids) ? 'selected' : ''; ?>>All</option>
-                        <?php echo $format_options; ?>
-                    </select>
-                </label>
+            <form id="leanwi-link-manager-form" class="leanwi-lm-filter-form">
+                <div class="leanwi-lm-filter-grid">
+                    <div class="leanwi-lm-field">
+                        <label for="leanwi-area-filter">Program Area</label>
+                        <select name="area_id" id="leanwi-area-filter">
+                            <option value="" <?php selected(empty($area_filter_ids)); ?>>All program areas</option>
+                            <?php echo $area_options; ?>
+                        </select>
+                        <small>Filter links by program area.</small>
+                    </div>
 
-                <!-- Date Range Filters -->
-                <label>Start Date:
-                    <input type="date" name="start_date">
-                </label>
-                <label>End Date:
-                    <input type="date" name="end_date">
-                </label>
+                    <div class="leanwi-lm-field">
+                        <label for="leanwi-format-filter">Format</label>
+                        <select name="format_id" id="leanwi-format-filter">
+                            <option value="" <?php selected(empty($format_filter_ids)); ?>>All formats</option>
+                            <?php echo $format_options; ?>
+                        </select>
+                        <small>Filter by resource type or format.</small>
+                    </div>
 
-                <!-- Tags Filter -->
-                <label>Tags:
-                    <select name="tag_id" id="leanwi-tag-filter">
-                        <option value="" <?php echo empty($tag_filter_ids) ? 'selected' : ''; ?>>All</option>
-                        <?php echo $tag_options; ?>
-                    </select>
-                </label>
+                    <div class="leanwi-lm-field">
+                        <label for="leanwi-tag-filter">Tag</label>
+                        <select name="tag_id" id="leanwi-tag-filter">
+                            <option value="" <?php selected(empty($tag_filter_ids)); ?>>All tags</option>
+                            <?php echo $tag_options; ?>
+                        </select>
+                        <small>Show items matching a specific tag.</small>
+                    </div>
 
-                <!-- Keyword Search -->
-                <label>Keyword:
-                    <input type="text" name="search">
-                </label>
-                <button type="submit">Refine List</button>
-                <button type="button" id="leanwi-clear-filters">Clear Filters</button>
+                    <div class="leanwi-lm-field">
+                        <label for="leanwi-start-date">Start Date</label>
+                        <input type="date" name="start_date" id="leanwi-start-date">
+                        <small>Only show links on or after this date.</small>
+                    </div>
+
+                    <div class="leanwi-lm-field">
+                        <label for="leanwi-end-date">End Date</label>
+                        <input type="date" name="end_date" id="leanwi-end-date">
+                        <small>Only show links on or before this date.</small>
+                    </div>
+
+                    <div class="leanwi-lm-field leanwi-lm-field--wide">
+                        <label for="leanwi-search-filter">Keyword Search</label>
+                        <input type="text" name="search" id="leanwi-search-filter" placeholder="Search titles, descriptions, or keywords">
+                        <small>Search within the available links.</small>
+                    </div>
+                </div>
+
+                <div class="leanwi-lm-actions">
+                    <button type="submit" class="leanwi-lm-button leanwi-lm-button--primary">Apply Filters</button>
+                    <button type="button" id="leanwi-clear-filters" class="leanwi-lm-button leanwi-lm-button--secondary">Clear Filters</button>
+                </div>
 
                 <input type="hidden" name="action" value="leanwi_filter_links">
                 <input type="hidden" name="nonce" value="<?php echo esc_attr(wp_create_nonce('leanwi_filter_links')); ?>">
                 <input type="hidden" name="initial_area_id" value="<?php echo esc_attr(implode(',', $initial_filters['area_id'])); ?>">
                 <input type="hidden" name="initial_tag_id" value="<?php echo esc_attr(implode(',', $initial_filters['tag_id'])); ?>">
                 <input type="hidden" name="initial_format_id" value="<?php echo esc_attr(implode(',', $initial_filters['format_id'])); ?>">
-                <input type="hidden" name="max_listings" value="<?php echo esc_attr((int)$atts['max_listings']); ?>">
+                <input type="hidden" name="max_listings" value="<?php echo esc_attr((int) $atts['max_listings']); ?>">
             </form>
         </div>
 
-        <div id="leanwi-link-manager-results">Loading...</div>
+        <div id="leanwi-link-manager-results" aria-live="polite">Loading...</div>
     </div>
 
     <script>
-        const LEANWI_LINK_MANAGER_INITIAL = <?php echo json_encode($initial_filters); ?>;
+        const LEANWI_LINK_MANAGER_INITIAL = <?php echo wp_json_encode($initial_filters); ?>;
     </script>
 
     <script>

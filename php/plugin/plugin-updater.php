@@ -61,7 +61,7 @@ function lm_plugin_update_info($res, $action, $args) {
         'homepage'        => 'https://github.com/' . GITHUB_REPO,
         'download_link'   => $release->zipball_url,
         'requires'        => '6.7',
-        'tested'          => '6.8.1',
+        'tested'          => '6.9.4',
         'sections'        => [
             'description' => 'Functionality for managing and displaying links to resources via a table for LEANWI Divi WordPress websites.',
         ],

@@ -114,7 +114,7 @@ function leanwi_filter_links() {
     if (empty($results)) {
         echo '<p>No links found.</p>';
     } else {
-        echo '<table><thead><tr>';
+        echo '<table class="leanwi-lm-results-table"><thead><tr>';
         echo '<th>Date</th><th>Title</th><th>Format</th><th>Description</th><th>Program Area</th><th>Tags</th><th>Related Links</th>';
         echo '</tr></thead><tbody>';
 
@@ -124,12 +124,12 @@ function leanwi_filter_links() {
             
             echo '<tr>';
             $display_date = new \DateTime($link['creation_date']);
-            echo '<td>' . esc_html($display_date->format('F j, Y')) . '</td>';
-            echo '<td><a href="' . esc_url($link['link_url']) . '" target="_blank" title="' . esc_attr($link['description']) . '">' . esc_html($link['title']) . '</a></td>';
+            echo '<td data-label="Date">' . esc_html($display_date->format('F j, Y')) . '</td>';
+            echo '<td data-label="Title"><a href="' . esc_url($link['link_url']) . '" target="_blank" title="' . esc_attr($link['description']) . '">' . esc_html($link['title']) . '</a></td>';
             
-            echo '<td>' . esc_html($link['format_name']) . '</td>';
-            echo '<td>' . esc_html($link['description']) . '</td>';
-            echo '<td>' . esc_html($link['area_name']) . '</td>';
+            echo '<td data-label="Format">' . esc_html($link['format_name']) . '</td>';
+            echo '<td data-label="Description">' . esc_html($link['description']) . '</td>';
+            echo '<td data-label="Program Area">' . esc_html($link['area_name']) . '</td>';
             
             // Get tags for this link
             $tag_names = $wpdb->get_col(
@@ -147,7 +147,7 @@ function leanwi_filter_links() {
                 $tag_output = implode(', ', array_map('esc_html', $tag_names));
             }
 
-            echo '<td>' . $tag_output . '</td>';
+            echo '<td data-label="Tags">' . $tag_output . '</td>';
 
             // First, get the relationship_id for this link
             $relationship_id = $wpdb->get_var(
@@ -191,7 +191,7 @@ function leanwi_filter_links() {
                 }
             }
 
-            echo '<td>' . $related_titles . '</td>';
+            echo '<td data-label="Related Links">' . $related_titles . '</td>';
             echo '</tr>';
 
         }
