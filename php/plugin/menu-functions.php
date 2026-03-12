@@ -186,6 +186,16 @@ function leanwi_lm_add_admin_menu() {
         __NAMESPACE__ . '\\leanwi_lm_reports_page'        // Callback function to display the reports page
     );
 
+    // Sub-menu: "Settings"
+    add_submenu_page(
+        'leanwi-link-manager-main',
+        'Settings',
+        'Settings',
+        'manage_options',
+        'leanwi-lm-settings',
+        __NAMESPACE__ . '\\leanwi_lm_settings_page'
+    );
+
 }
 
 
@@ -1777,3 +1787,106 @@ function leanwi_lm_get_report_count() {
 add_action('wp_ajax_leanwi_lm_get_report_count', __NAMESPACE__ . '\\leanwi_lm_get_report_count');
 
 
+/**************************************************************************************************
+ * Settings
+ **************************************************************************************************/
+function leanwi_lm_register_settings() {
+    register_setting(
+        'leanwi_lm_settings_group',
+        'leanwi_lm_accent_color',
+        [
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_hex_color',
+            'default' => '#0f62fe',
+        ]
+    );
+
+    register_setting(
+        'leanwi_lm_settings_group',
+        'leanwi_lm_surface_color',
+        [
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_hex_color',
+            'default' => '#f8fafc',
+        ]
+    );
+
+    register_setting(
+        'leanwi_lm_settings_group',
+        'leanwi_lm_text_color',
+        [
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_hex_color',
+            'default' => '#102a43',
+        ]
+    );
+
+    add_settings_section(
+        'leanwi_lm_display_section',
+        'Display Settings',
+        __NAMESPACE__ . '\\leanwi_lm_display_section_callback',
+        'leanwi-lm-settings'
+    );
+
+    add_settings_field(
+        'leanwi_lm_accent_color',
+        'Accent Color',
+        __NAMESPACE__ . '\\leanwi_lm_accent_color_field',
+        'leanwi-lm-settings',
+        'leanwi_lm_display_section'
+    );
+
+    add_settings_field(
+        'leanwi_lm_surface_color',
+        'Surface Color',
+        __NAMESPACE__ . '\\leanwi_lm_surface_color_field',
+        'leanwi-lm-settings',
+        'leanwi_lm_display_section'
+    );
+
+    add_settings_field(
+        'leanwi_lm_text_color',
+        'Text Color',
+        __NAMESPACE__ . '\\leanwi_lm_text_color_field',
+        'leanwi-lm-settings',
+        'leanwi_lm_display_section'
+    );
+}
+add_action('admin_init', __NAMESPACE__ . '\\leanwi_lm_register_settings');
+
+function leanwi_lm_display_section_callback() {
+    echo '<p>Choose the default colors used for the frontend filter panel, buttons, loading indicators, and results table.</p>';
+}
+
+function leanwi_lm_accent_color_field() {
+    $value = get_option('leanwi_lm_accent_color', '#0f62fe');
+    echo '<input type="color" id="leanwi_lm_accent_color" name="leanwi_lm_accent_color" value="' . esc_attr($value) . '" />';
+    echo '<p class="description">Used for primary buttons, focus states, spinner highlight, and accents.</p>';
+}
+
+function leanwi_lm_surface_color_field() {
+    $value = get_option('leanwi_lm_surface_color', '#f8fafc');
+    echo '<input type="color" id="leanwi_lm_surface_color" name="leanwi_lm_surface_color" value="' . esc_attr($value) . '" />';
+    echo '<p class="description">Used for filter panel backgrounds, loading panels, and light surfaces.</p>';
+}
+
+function leanwi_lm_text_color_field() {
+    $value = get_option('leanwi_lm_text_color', '#102a43');
+    echo '<input type="color" id="leanwi_lm_text_color" name="leanwi_lm_text_color" value="' . esc_attr($value) . '" />';
+    echo '<p class="description">Used for headings, labels, and prominent text.</p>';
+}
+
+function leanwi_lm_settings_page() {
+    ?>
+    <div class="wrap">
+        <h1>LEANWI Link Manager Settings</h1>
+        <form method="post" action="options.php">
+            <?php
+            settings_fields('leanwi_lm_settings_group');
+            do_settings_sections('leanwi-lm-settings');
+            submit_button('Save Settings');
+            ?>
+        </form>
+    </div>
+    <?php
+}

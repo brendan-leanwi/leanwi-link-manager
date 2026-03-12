@@ -5,7 +5,7 @@ Plugin Name:  LEANWI Link Manager
 GitHub URI:   https://github.com/brendan-leanwi/leanwi-link-manager
 Update URI:   https://github.com/brendan-leanwi/leanwi-link-manager
 Description:  Functionality for managing and displaying links to resources via a table for LEANWI Divi WordPress websites
-Version:      0.0.9
+Version:      0.1.0
 Author:       Brendan Tuckey
 Author URI:   https://github.com/brendan-leanwi
 License:      GPL2
@@ -40,7 +40,7 @@ register_uninstall_hook(__FILE__, __NAMESPACE__ . '\\leanwi_lm_drop_tables');
 // Version-based update check
 function leanwi_lm_update_check() {
     $current_version = get_option('leanwi_link_manager_version', '0.0.5'); // Default to an old version if not set
-    $new_version = '0.0.9'; // Update this with the new plugin version
+    $new_version = '0.1.0'; // Update this with the new plugin version
 
     if (version_compare($current_version, $new_version, '<')) {
         // Run the table creation logic
@@ -83,6 +83,43 @@ function leanwi_lm_enqueue_scripts() {
 }
 add_action('wp_enqueue_scripts', __NAMESPACE__ . '\\leanwi_lm_enqueue_scripts');
 
+function leanwi_lm_hex_to_rgb($hex) {
+    $hex = ltrim($hex, '#');
+
+    if (strlen($hex) === 3) {
+        $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+    }
+
+    return [
+        'r' => hexdec(substr($hex, 0, 2)),
+        'g' => hexdec(substr($hex, 2, 2)),
+        'b' => hexdec(substr($hex, 4, 2)),
+    ];
+}
+
+function leanwi_lm_output_custom_color_variables() {
+    $accent  = get_option('leanwi_lm_accent_color', '#0f62fe');
+    $surface = get_option('leanwi_lm_surface_color', '#f8fafc');
+    $text    = get_option('leanwi_lm_text_color', '#102a43');
+
+    $accent  = sanitize_hex_color($accent) ?: '#0f62fe';
+    $surface = sanitize_hex_color($surface) ?: '#f8fafc';
+    $text    = sanitize_hex_color($text) ?: '#102a43';
+
+    $accent_rgb = leanwi_lm_hex_to_rgb($accent);
+
+    $css = "
+        :root {
+            --leanwi-lm-accent: {$accent};
+            --leanwi-lm-surface: {$surface};
+            --leanwi-lm-text: {$text};
+            --leanwi-lm-focus-ring: rgba({$accent_rgb['r']}, {$accent_rgb['g']}, {$accent_rgb['b']}, 0.15);
+        }
+    ";
+
+    wp_add_inline_style('leanwi-link-manager-style', $css);
+}
+add_action('wp_enqueue_scripts', __NAMESPACE__ . '\\leanwi_lm_output_custom_color_variables', 20);
 
 
 function enqueue_custom_styles() {
