@@ -438,3 +438,105 @@
   cursor: pointer;
 }
 
+/* SIMPLE LINKS LIST SHORTCODE CSS*/
+.leanwi-lm-links-list {
+    margin: 1rem 0;
+    padding-left: 0;
+    list-style: none;
+}
+
+.leanwi-lm-links-list__item + .leanwi-lm-links-list__item {
+    margin-top: 0.5rem;
+}
+
+.leanwi-lm-links-list__link {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.leanwi-lm-links-list__link:hover .dsm_icon_list_text,
+.leanwi-lm-links-list__link:focus .dsm_icon_list_text {
+    text-decoration: underline;
+}
+
+.leanwi-lm-links-list .dsm_icon_list_wrapper {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.leanwi-lm-links-list .dsm_icon_list_icon {
+    line-height: 1;
+}
+
+.leanwi-lm-links-list-empty {
+    margin: 1rem 0;
+}
+
+/* SIMPLE LINKS LIST SHORTCODE */
+.leanwi-lm-links-list {
+    margin: 1rem 0;
+    padding-left: 0;
+    list-style: none;
+}
+
+.leanwi-lm-links-list__item + .leanwi-lm-links-list__item {
+    margin-top: 0.5rem;
+}
+
+.leanwi-lm-links-list__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none !important;
+}
+
+.leanwi-lm-links-list__link:hover,
+.leanwi-lm-links-list__link:focus {
+    text-decoration: none !important;
+}
+
+.leanwi-lm-links-list__link:hover .dsm_icon_list_text,
+.leanwi-lm-links-list__link:focus .dsm_icon_list_text {
+    text-decoration: none !important;
+}
+
+.leanwi-lm-links-list .dsm_icon_list_wrapper {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.leanwi-lm-links-list .dsm_icon_list_icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    font-size: 18px !important;
+}
+
+/* Dashicon fallback */
+.leanwi-lm-default-icon {
+    color: #000 !important;
+    font-size: 18px !important;
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
+    text-decoration: none !important;
+}
+
+/* Image icon (when using format icons) */
+.leanwi-lm-links-list__icon-image {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    display: block;
+}
+
+.leanwi-lm-links-list-empty {
+    margin: 1rem 0;
+}
