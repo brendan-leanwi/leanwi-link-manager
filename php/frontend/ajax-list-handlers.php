@@ -16,15 +16,24 @@ function leanwi_filter_links() {
     $tags_table = $wpdb->prefix . 'leanwi_lm_tags';
     $linktags_table = $wpdb->prefix . 'leanwi_lm_linktags';
     $related_table = $wpdb->prefix . 'leanwi_lm_related_links';
+    $audience_table = $wpdb->prefix . 'leanwi_lm_audience';
+    $linkaudience_table = $wpdb->prefix . 'leanwi_lm_linkaudience';
+    $linkprogram_area_table = $wpdb->prefix . 'leanwi_lm_linkprogram_area';
 
     // Get and sanitize filter parameters
     $initial_area_id = !empty($_POST['initial_area_id']) ? array_filter(array_map('intval', explode(',', $_POST['initial_area_id']))) : [];
     $initial_format_id = !empty($_POST['initial_format_id']) ? array_filter(array_map('intval', explode(',', $_POST['initial_format_id']))) : [];
     $initial_tag_id = !empty($_POST['initial_tag_id']) ? array_filter(array_map('intval', explode(',', $_POST['initial_tag_id']))) : [];
+    $initial_audience_id = !empty($_POST['initial_audience_id'])
+        ? array_filter(array_map('intval', explode(',', $_POST['initial_audience_id'])))
+        : [];
 
     $current_area_id = isset($_POST['area_id']) ? array_filter(array_map('intval', (array) $_POST['area_id'])) : [];
     $current_format_id = isset($_POST['format_id']) ? array_filter(array_map('intval', (array) $_POST['format_id'])) : [];
     $current_tag_id = isset($_POST['tag_id']) ? array_filter(array_map('intval', (array) $_POST['tag_id'])) : [];
+    $current_audience_id = isset($_POST['audience_id'])
+        ? array_filter(array_map('intval', (array) $_POST['audience_id']))
+        : [];
 
     $start_date = !empty($_POST['start_date']) ? sanitize_text_field($_POST['start_date']) : '';
     $end_date = !empty($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : '';
@@ -33,6 +42,7 @@ function leanwi_filter_links() {
     $area_id = !empty($current_area_id) ? $current_area_id : $initial_area_id;
     $format_id = !empty($current_format_id) ? $current_format_id : $initial_format_id;
     $tag_id = !empty($current_tag_id) ? $current_tag_id : $initial_tag_id;
+    $audience_id = !empty($current_audience_id) ? $current_audience_id : $initial_audience_id;
 
     $search = sanitize_text_field($_POST['search'] ?? '');
     $featured_only = (isset($_POST['featured_only']) && ($_POST['featured_only'] === '1' || $_POST['featured_only'] === 1)) ? 1 : 0;
@@ -43,18 +53,23 @@ function leanwi_filter_links() {
 
     // Build base query
     $query = "
-        SELECT l.*, a.name AS area_name, f.name AS format_name
+        SELECT
+            l.*,
+            f.name AS format_name,
+            GROUP_CONCAT(DISTINCT a.name ORDER BY a.display_order ASC SEPARATOR ', ') AS area_name
         FROM $links_table l
-        LEFT JOIN $areas_table a ON l.area_id = a.area_id
         LEFT JOIN $formats_table f ON l.format_id = f.format_id
+        LEFT JOIN $linkprogram_area_table lpa_display ON l.link_id = lpa_display.link_id
+        LEFT JOIN $areas_table a ON lpa_display.area_id = a.area_id
     ";
 
     $where = [];
     $params = [];
 
     if (!empty($area_id)) {
+        $query .= " INNER JOIN $linkprogram_area_table lpa_filter ON l.link_id = lpa_filter.link_id";
         $placeholders = implode(',', array_fill(0, count($area_id), '%d'));
-        $where[] = "l.area_id IN ($placeholders)";
+        $where[] = "lpa_filter.area_id IN ($placeholders)";
         $params = array_merge($params, $area_id);
     }
     
@@ -79,6 +94,13 @@ function leanwi_filter_links() {
         $query .= " INNER JOIN $linktags_table lt ON l.link_id = lt.link_id";
         $where[] = "lt.tag_id IN ($tag_placeholders)";
         $params = array_merge($params, $tag_id);
+    }
+
+    if (!empty($audience_id)) {
+        $audience_placeholders = implode(',', array_fill(0, count($audience_id), '%d'));
+        $query .= " INNER JOIN $linkaudience_table la ON l.link_id = la.link_id";
+        $where[] = "la.audience_id IN ($audience_placeholders)";
+        $params = array_merge($params, $audience_id);
     }
 
     if ($start_date && preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_date)) {

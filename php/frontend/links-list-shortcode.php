@@ -3,6 +3,31 @@ namespace LEANWI_Link_Manager;
 
 add_shortcode('link_manager_list', __NAMESPACE__ . '\\leanwi_link_manager_shortcode');
 
+
+function leanwi_lm_build_filter_options($table, $id_column, $name_column, $selected_ids = []) {
+    global $wpdb;
+
+    $selected_ids = array_filter(array_map('intval', (array) $selected_ids));
+    $options = '';
+
+    if (!empty($selected_ids)) {
+        $placeholders = implode(',', array_fill(0, count($selected_ids), '%d'));
+        $query = "SELECT $id_column, $name_column FROM $table WHERE $id_column IN ($placeholders) ORDER BY display_order ASC";
+        $results = $wpdb->get_results($wpdb->prepare($query, $selected_ids), ARRAY_A);
+    } else {
+        $query = "SELECT $id_column, $name_column FROM $table ORDER BY display_order ASC";
+        $results = $wpdb->get_results($query, ARRAY_A);
+    }
+
+    foreach ($results as $row) {
+        $id = (int) $row[$id_column];
+        $name = esc_html($row[$name_column]);
+        $options .= "<option value=\"$id\">$name</option>";
+    }
+
+    return $options;
+}
+
 function leanwi_link_manager_shortcode($atts) {
     wp_enqueue_script('leanwi-link-manager-ajax');
     wp_enqueue_style('leanwi-link-manager-style');
@@ -12,6 +37,7 @@ function leanwi_link_manager_shortcode($atts) {
         'area_id' => '',            // example: area_id="1,2"
         'tag_id' => '',             // example: tag_id="1,2"
         'format_id' => '',          // example: format_id="1,2"
+        'audience_id' => '',        // example: audience_id="1,2"
         'max_listings' => '0',      // Default to 0 = no limit
     ], $atts, 'link_manager_list');
 
@@ -22,6 +48,7 @@ function leanwi_link_manager_shortcode($atts) {
         'area_id' => array_filter(array_map('intval', explode(',', $atts['area_id']))),
         'tag_id' => array_filter(array_map('intval', explode(',', $atts['tag_id']))),
         'format_id' => array_filter(array_map('intval', explode(',', $atts['format_id']))),
+        'audience_id' => array_filter(array_map('intval', explode(',', $atts['audience_id']))),
         'max_listings' => intval($atts['max_listings']),
     ];
 
@@ -31,88 +58,26 @@ function leanwi_link_manager_shortcode($atts) {
 
     // Fetch matching program areas from DB
     $areas_table = $wpdb->prefix . 'leanwi_lm_program_area';
-    $area_filter_ids = $initial_filters['area_id'];
-
-    $area_options = '';
-    if (!empty($area_filter_ids)) {
-        $placeholders = implode(',', array_fill(0, count($area_filter_ids), '%d'));
-        $query = "SELECT area_id, name FROM $areas_table WHERE area_id IN ($placeholders) ORDER BY display_order ASC";
-        $prepared = $wpdb->prepare($query, $area_filter_ids);
-        $area_results = $wpdb->get_results($prepared, ARRAY_A);
-
-        foreach ($area_results as $area) {
-            $area_id = (int) $area['area_id'];
-            $area_name = esc_html($area['name']);
-            $area_options .= "<option value=\"$area_id\">$area_name</option>";
-        }
-    } else {
-        // If no filter passed, show all areas
-        $area_results = $wpdb->get_results("SELECT area_id, name FROM $areas_table ORDER BY display_order ASC", ARRAY_A);
-        foreach ($area_results as $area) {
-            $area_id = (int) $area['area_id'];
-            $area_name = esc_html($area['name']);
-            $area_options .= "<option value=\"$area_id\">$area_name</option>";
-        }
-    }
-
-    // Fetch matching formats from DB
     $formats_table = $wpdb->prefix . 'leanwi_lm_formats';
-    $format_filter_ids = $initial_filters['format_id'];
-
-    $format_options = '';
-    if (!empty($format_filter_ids)) {
-        $placeholders = implode(',', array_fill(0, count($format_filter_ids), '%d'));
-        $query = "SELECT format_id, name FROM $formats_table WHERE format_id IN ($placeholders) ORDER BY display_order ASC";
-        $prepared = $wpdb->prepare($query, $format_filter_ids);
-        $format_results = $wpdb->get_results($prepared, ARRAY_A);
-
-        foreach ($format_results as $format) {
-            $format_id = (int) $format['format_id'];
-            $format_name = esc_html($format['name']);
-            $format_options .= "<option value=\"$format_id\">$format_name</option>";
-        }
-    } else {
-        // If no format filters passed, show all formats
-        $format_results = $wpdb->get_results("SELECT format_id, name FROM $formats_table ORDER BY display_order ASC", ARRAY_A);
-        foreach ($format_results as $format) {
-            $format_id = (int) $format['format_id'];
-            $format_name = esc_html($format['name']);
-            $format_options .= "<option value=\"$format_id\">$format_name</option>";
-        }
-    }
-
-    // Fetch matching tags from DB
     $tags_table = $wpdb->prefix . 'leanwi_lm_tags';
+    $audience_table = $wpdb->prefix . 'leanwi_lm_audience';
+
+    $area_filter_ids = $initial_filters['area_id'];
+    $format_filter_ids = $initial_filters['format_id'];
     $tag_filter_ids = $initial_filters['tag_id'];
+    $audience_filter_ids = $initial_filters['audience_id'];
 
-    $tag_options = '';
-    if (!empty($tag_filter_ids)) {
-        $placeholders = implode(',', array_fill(0, count($tag_filter_ids), '%d'));
-        $query = "SELECT tag_id, name FROM $tags_table WHERE tag_id IN ($placeholders) ORDER BY display_order ASC";
-        $prepared = $wpdb->prepare($query, $tag_filter_ids);
-        $tag_results = $wpdb->get_results($prepared, ARRAY_A);
-
-        foreach ($tag_results as $tag) {
-            $tag_id = (int) $tag['tag_id'];
-            $tag_name = esc_html($tag['name']);
-            $tag_options .= "<option value=\"$tag_id\">$tag_name</option>";
-        }
-    } else {
-        // If no tag filters passed, show all tags
-        $tag_results = $wpdb->get_results("SELECT tag_id, name FROM $tags_table ORDER BY display_order ASC", ARRAY_A);
-        foreach ($tag_results as $tag) {
-            $tag_id = (int) $tag['tag_id'];
-            $tag_name = esc_html($tag['name']);
-            $tag_options .= "<option value=\"$tag_id\">$tag_name</option>";
-        }
-    }
+    $area_options = leanwi_lm_build_filter_options($areas_table, 'area_id', 'name', $area_filter_ids);
+    $format_options = leanwi_lm_build_filter_options($formats_table, 'format_id', 'name', $format_filter_ids);
+    $tag_options = leanwi_lm_build_filter_options($tags_table, 'tag_id', 'name', $tag_filter_ids);
+    $audience_options = leanwi_lm_build_filter_options($audience_table, 'audience_id', 'name', $audience_filter_ids);
 
     ?>
     <div id="leanwi-link-manager-container">
         <div id="leanwi-link-manager-filters" class="leanwi-lm-filter-panel">
             <div class="leanwi-lm-filter-panel__header">
                 <h3>Refine Links</h3>
-                <p>Use the filters below to narrow the list by area, format, date, tag, or keyword.</p>
+                <p>Use the filters below to narrow the list by area, audience, format, date, tag, or keyword.</p>
             </div>
 
             <form id="leanwi-link-manager-form" class="leanwi-lm-filter-form">
@@ -124,6 +89,15 @@ function leanwi_link_manager_shortcode($atts) {
                             <?php echo $area_options; ?>
                         </select>
                         <small>Filter links by program area.</small>
+                    </div>
+
+                    <div class="leanwi-lm-field">
+                        <label for="leanwi-audience-filter">Audience</label>
+                        <select name="audience_id" id="leanwi-audience-filter">
+                            <option value="" <?php selected(empty($audience_filter_ids)); ?>>All audiences</option>
+                            <?php echo $audience_options; ?>
+                        </select>
+                        <small>Show items matching a specific audience.</small>
                     </div>
 
                     <div class="leanwi-lm-field">
@@ -171,6 +145,7 @@ function leanwi_link_manager_shortcode($atts) {
                 <input type="hidden" name="action" value="leanwi_filter_links">
                 <input type="hidden" name="nonce" value="<?php echo esc_attr(wp_create_nonce('leanwi_filter_links')); ?>">
                 <input type="hidden" name="initial_area_id" value="<?php echo esc_attr(implode(',', $initial_filters['area_id'])); ?>">
+                <input type="hidden" name="initial_audience_id" value="<?php echo esc_attr(implode(',', $initial_filters['audience_id'])); ?>">
                 <input type="hidden" name="initial_tag_id" value="<?php echo esc_attr(implode(',', $initial_filters['tag_id'])); ?>">
                 <input type="hidden" name="initial_format_id" value="<?php echo esc_attr(implode(',', $initial_filters['format_id'])); ?>">
                 <input type="hidden" name="max_listings" value="<?php echo esc_attr((int) $atts['max_listings']); ?>">
@@ -192,10 +167,12 @@ function leanwi_link_manager_shortcode($atts) {
             const areaSelect = form.querySelector('select[name="area_id"]');
             const formatSelect = form.querySelector('select[name="format_id"]');
             const tagSelect = form.querySelector('select[name="tag_id"]');
+            const audienceSelect = form.querySelector('select[name="audience_id"]');
 
             areaSelect.value = form.querySelector('input[name="initial_area_id"]').value || '';
             formatSelect.value = form.querySelector('input[name="initial_format_id"]').value || '';
             tagSelect.value = form.querySelector('input[name="initial_tag_id"]').value || '';
+            audienceSelect.value = form.querySelector('input[name="initial_audience_id"]').value || '';
 
             // Reset date inputs
             form.querySelector('input[name="start_date"]').value = '';

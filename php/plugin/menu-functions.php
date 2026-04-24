@@ -136,6 +136,46 @@ function leanwi_lm_add_admin_menu() {
         __NAMESPACE__ . '\\leanwi_lm_delete_format_page'
     );
 
+    // Sub-menu: "Audience"
+    add_submenu_page(
+        'leanwi-link-manager-main',
+        'Audience',
+        'Audience',
+        'manage_options',
+        'leanwi-lm-audience',
+        __NAMESPACE__ . '\\leanwi_lm_audience_page'
+    );
+
+    // Sub-menu: "Add Audience"
+    add_submenu_page(
+        'leanwi-link-manager-main',
+        'Add Audience',
+        'Add Audience',
+        'manage_options',
+        'leanwi-lm-add-audience',
+        __NAMESPACE__ . '\\leanwi_lm_add_audience_page'
+    );
+
+    // Sub-menu: "Edit Audience"
+    add_submenu_page(
+        'leanwi-link-manager-main',
+        'Edit Audience',
+        'Edit Audience',
+        'manage_options',
+        'leanwi-lm-edit-audience',
+        __NAMESPACE__ . '\\leanwi_lm_edit_audience_page'
+    );
+
+    // Sub-menu: "Delete Audience"
+    add_submenu_page(
+        'leanwi-link-manager-main',
+        'Delete Audience',
+        'Delete Audience',
+        'manage_options',
+        'leanwi-lm-delete-audience',
+        __NAMESPACE__ . '\\leanwi_lm_delete_audience_page'
+    );
+
     // Sub-menu: "Tags"
     add_submenu_page(
         'leanwi-link-manager-main',    // Parent slug
@@ -213,6 +253,9 @@ function leanwi_hide_add_edit_submenus_css() {
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-add-format"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-edit-format"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-delete-format"],
+        #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-add-audience"],
+        #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-edit-audience"],
+        #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-delete-audience"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-add-tag"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-edit-tag"],
         #toplevel_page_leanwi-link-manager-main .wp-submenu a[href="admin.php?page=leanwi-lm-delete-tag"] {
@@ -275,6 +318,9 @@ function leanwi_lm_manager_links_page() {
     $formats_table = $wpdb->prefix . 'leanwi_lm_formats';
     $tags_table = $wpdb->prefix . 'leanwi_lm_tags';
     $linktags_table = $wpdb->prefix . 'leanwi_lm_linktags';
+    $linkprogram_area_table = $wpdb->prefix . 'leanwi_lm_linkprogram_area';
+    $audience_table = $wpdb->prefix . 'leanwi_lm_audience';
+    $linkaudience_table = $wpdb->prefix . 'leanwi_lm_linkaudience';
 
     // Handle deletion if delete_link is set
     if (isset($_GET['delete_link'])) {
@@ -283,10 +329,11 @@ function leanwi_lm_manager_links_page() {
         echo '<div class="updated"><p>Link deleted successfully.</p></div>';
     }
 
-    // Fetch Program Areas and Formats for dropdowns
+    // Fetch Program Areas, Formats Tags and Audiences for dropdowns
     $areas = $wpdb->get_results("SELECT area_id, name FROM $areas_table ORDER BY name ASC", ARRAY_A);
     $formats = $wpdb->get_results("SELECT format_id, name FROM $formats_table ORDER BY name ASC", ARRAY_A);
     $tags = $wpdb->get_results("SELECT tag_id, name FROM $tags_table ORDER BY name ASC", ARRAY_A);
+    $audiences = $wpdb->get_results("SELECT audience_id, name FROM $audience_table ORDER BY display_order ASC", ARRAY_A);
 
     // Build filters form
     echo '<div class="wrap">';
@@ -328,15 +375,39 @@ function leanwi_lm_manager_links_page() {
 
     // Program Area Dropdown
     echo '<tr>';
-    echo '<th scope="row">Program Area</th>';
+    echo '<th scope="row">Program Areas</th>';
     echo '<td>';
-    echo '<select name="area_id">';
-    echo '<option value="">-- All Program Areas --</option>';
-    foreach ($areas as $area) {
-        $selected = (isset($_GET['area_id']) && $_GET['area_id'] == $area['area_id']) ? 'selected' : '';
-        echo '<option value="' . esc_attr($area['area_id']) . '" ' . $selected . '>' . esc_html($area['name']) . '</option>';
-    }
-    echo '</select>';
+
+    $selected_program_areas = $_GET['program_areas'] ?? [];
+
+    leanwi_lm_render_searchable_checkbox_picker(
+        'program_areas',
+        $areas,
+        'area_id',
+        'name',
+        is_array($selected_program_areas) ? $selected_program_areas : [],
+        'filter-program-areas-picker'
+    );
+
+    echo '</td>';
+    echo '</tr>';
+
+    // Audience dropdown 
+    echo '<tr>';
+    echo '<th scope="row">Audience</th>';
+    echo '<td>';
+
+    $selected_audiences = $_GET['audiences'] ?? [];
+
+    leanwi_lm_render_searchable_checkbox_picker(
+        'audiences',
+        $audiences,
+        'audience_id',
+        'name',
+        is_array($selected_audiences) ? $selected_audiences : [],
+        'filter-audience-picker'
+    );
+
     echo '</td>';
     echo '</tr>';
 
@@ -366,22 +437,22 @@ function leanwi_lm_manager_links_page() {
     echo '</td>';
     echo '</tr>';
 
-    // Tags Checkboxes
+    // Tags dropdown
     echo '<tr>';
     echo '<th scope="row">Tags</th>';
     echo '<td>';
-    if (!empty($tags)) {
-        $selected_tags = $_GET['tags'] ?? [];
-        foreach ($tags as $index => $tag) {
-            if ($index % 4 == 0) echo '<div style="clear: both;"></div>';
-            $checked = (is_array($selected_tags) && in_array($tag['tag_id'], $selected_tags)) ? 'checked' : '';
-            echo '<label style="width: 23%; display: inline-block; margin-right: 1%;">';
-            echo '<input type="checkbox" name="tags[]" value="' . esc_attr($tag['tag_id']) . '" ' . $checked . '> ' . esc_html($tag['name']);
-            echo '</label>';
-        }
-    } else {
-        echo 'No tags available.';
-    }
+
+    $selected_tags = $_GET['tags'] ?? [];
+
+    leanwi_lm_render_searchable_checkbox_picker(
+        'tags',
+        $tags,
+        'tag_id',
+        'name',
+        is_array($selected_tags) ? $selected_tags : [],
+        'filter-tags-picker'
+    );
+
     echo '</td>';
     echo '</tr>';
 
@@ -419,12 +490,6 @@ function leanwi_lm_manager_links_page() {
         $params[] = intval($_GET['format_id']);
     }
 
-    // Program area filter
-    if (!empty($_GET['area_id'])) {
-        $where[] = "l.area_id = %d";
-        $params[] = intval($_GET['area_id']);
-    }
-
     // Featured Links filter
     if (!empty($_GET['is_featured_link'])) {
         $where[] = "l.is_featured_link = 1";
@@ -445,23 +510,65 @@ function leanwi_lm_manager_links_page() {
 
     // Start base query
     $query = "
-        SELECT l.*, a.name AS area_name, f.name AS format_name
+        SELECT
+            l.*,
+            f.name AS format_name,
+            GROUP_CONCAT(DISTINCT a.name ORDER BY a.display_order ASC SEPARATOR ', ') AS area_name
         FROM $links_table l
-        LEFT JOIN $areas_table a ON l.area_id = a.area_id
         LEFT JOIN $formats_table f ON l.format_id = f.format_id
+        LEFT JOIN $linkprogram_area_table lpa_display ON l.link_id = lpa_display.link_id
+        LEFT JOIN $areas_table a ON lpa_display.area_id = a.area_id
     ";
 
-    // Tags filter logic (join AFTER base query built)
-    $tag_params = [];
-    if (!empty($_GET['tags'])) {
-        $tag_ids = array_map('intval', $_GET['tags']);
-        $tag_placeholders = implode(',', array_fill(0, count($tag_ids), '%d'));
+    // Join AFTER base query is built
+    $join_params = [];
 
-        $query .= "
-            INNER JOIN $linktags_table lt ON l.link_id = lt.link_id
-            AND lt.tag_id IN ($tag_placeholders)
-        ";
-        $tag_params = $tag_ids;
+    // Program Areas filter
+    if (!empty($_GET['program_areas']) && is_array($_GET['program_areas'])) {
+        $program_area_ids = leanwi_lm_sanitize_id_array($_GET['program_areas']);
+
+        if (!empty($program_area_ids)) {
+            $program_area_placeholders = implode(',', array_fill(0, count($program_area_ids), '%d'));
+
+            $query .= "
+                INNER JOIN $linkprogram_area_table lpa_filter ON l.link_id = lpa_filter.link_id
+                AND lpa_filter.area_id IN ($program_area_placeholders)
+            ";
+
+            $join_params = array_merge($join_params, $program_area_ids);
+        }
+    }
+
+    // Audience filter
+    if (!empty($_GET['audiences']) && is_array($_GET['audiences'])) {
+        $audience_ids = leanwi_lm_sanitize_id_array($_GET['audiences']);
+
+        if (!empty($audience_ids)) {
+            $audience_placeholders = implode(',', array_fill(0, count($audience_ids), '%d'));
+
+            $query .= "
+                INNER JOIN $linkaudience_table la_filter ON l.link_id = la_filter.link_id
+                AND la_filter.audience_id IN ($audience_placeholders)
+            ";
+
+            $join_params = array_merge($join_params, $audience_ids);
+        }
+    }
+
+    // Tags filter
+    if (!empty($_GET['tags']) && is_array($_GET['tags'])) {
+        $tag_ids = leanwi_lm_sanitize_id_array($_GET['tags']);
+
+        if (!empty($tag_ids)) {
+            $tag_placeholders = implode(',', array_fill(0, count($tag_ids), '%d'));
+
+            $query .= "
+                INNER JOIN $linktags_table lt_filter ON l.link_id = lt_filter.link_id
+                AND lt_filter.tag_id IN ($tag_placeholders)
+            ";
+
+            $join_params = array_merge($join_params, $tag_ids);
+        }
     }
 
     // Add WHERE clause
@@ -473,7 +580,7 @@ function leanwi_lm_manager_links_page() {
     $query .= " GROUP BY l.link_id ORDER BY l.creation_date DESC";
 
     // Merge tag_params FIRST since their placeholders come first
-    $final_params = array_merge($tag_params, $params);
+    $final_params = array_merge($join_params, $params);
 
     $links = $wpdb->get_results($wpdb->prepare($query, $final_params), ARRAY_A);
 
@@ -536,6 +643,88 @@ function leanwi_lm_manager_links_page() {
         });
     </script>
     <?php
+
+    leanwi_lm_render_picker_script_once();
+}
+
+/**************************************************************************************************
+ * Link Add Helper Functions
+ * ***********************************************************************************************/
+function leanwi_lm_sanitize_id_array($ids) {
+    if (empty($ids) || !is_array($ids)) {
+        return [];
+    }
+
+    $ids = array_map('intval', $ids);
+    $ids = array_filter($ids, function($id) {
+        return $id > 0;
+    });
+
+    return array_values(array_unique($ids));
+}
+
+function leanwi_lm_render_searchable_checkbox_picker($field_name, $items, $id_key, $label_key, $selected_ids = [], $picker_id = '') {
+    $selected_ids = array_map('intval', $selected_ids);
+
+    if (empty($picker_id)) {
+        $picker_id = sanitize_key($field_name) . '_picker';
+    }
+
+    echo '<div class="leanwi-lm-picker" id="' . esc_attr($picker_id) . '" style="max-width:800px;">';
+    echo '<input type="text" class="leanwi-lm-picker-filter" placeholder="Search..." style="width:100%; max-width:400px; margin-bottom:8px;">';
+
+    echo '<div class="leanwi-lm-picker-options" style="border:1px solid #ccc; background:#fff; max-height:220px; overflow:auto; padding:10px;">';
+
+    if (!empty($items)) {
+        foreach ($items as $item) {
+            $item_id = intval($item[$id_key]);
+            $label = $item[$label_key];
+            $checked = in_array($item_id, $selected_ids, true) ? 'checked' : '';
+
+            echo '<label class="leanwi-lm-picker-option" data-search="' . esc_attr(strtolower($label)) . '" style="display:block; margin-bottom:6px;">';
+            echo '<input type="checkbox" name="' . esc_attr($field_name) . '[]" value="' . esc_attr($item_id) . '" ' . $checked . '> ';
+            echo esc_html($label);
+            echo '</label>';
+        }
+    } else {
+        echo '<p>No options available.</p>';
+    }
+
+    echo '</div>';
+    echo '</div>';
+}
+
+function leanwi_lm_render_picker_script_once() {
+    static $rendered = false;
+
+    if ($rendered) {
+        return;
+    }
+
+    $rendered = true;
+    ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.leanwi-lm-picker').forEach(function(picker) {
+                const filter = picker.querySelector('.leanwi-lm-picker-filter');
+                const options = picker.querySelectorAll('.leanwi-lm-picker-option');
+
+                if (!filter) {
+                    return;
+                }
+
+                filter.addEventListener('input', function() {
+                    const searchTerm = filter.value.toLowerCase();
+
+                    options.forEach(function(option) {
+                        const text = option.getAttribute('data-search') || '';
+                        option.style.display = text.includes(searchTerm) ? 'block' : 'none';
+                    });
+                });
+            });
+        });
+    </script>
+    <?php
 }
 
 function leanwi_lm_add_link_page() {
@@ -546,10 +735,19 @@ function leanwi_lm_add_link_page() {
     $tags_table = $wpdb->prefix . 'leanwi_lm_tags';
     $linktags_table = $wpdb->prefix . 'leanwi_lm_linktags';
     $related_links_table = $wpdb->prefix . 'leanwi_lm_related_links';
+    $linkprogram_area_table = $wpdb->prefix . 'leanwi_lm_linkprogram_area';
+    $audience_table = $wpdb->prefix . 'leanwi_lm_audience';
+    $linkaudience_table = $wpdb->prefix . 'leanwi_lm_linkaudience';
 
     // Handle form submission
     if (isset($_POST['add_link'])) {
-        $area_id = intval($_POST['area_id']);
+        $program_area_ids = leanwi_lm_sanitize_id_array($_POST['program_areas'] ?? []);
+        $audience_ids = leanwi_lm_sanitize_id_array($_POST['audiences'] ?? []);
+        $tag_ids = leanwi_lm_sanitize_id_array($_POST['tags'] ?? []);
+
+        // Temporary backwards compatibility while area_id still exists on leanwi_lm_links.
+        $area_id = !empty($program_area_ids) ? $program_area_ids[0] : 0;
+
         $format_id = isset($_POST['format_id']) ? intval($_POST['format_id']) : null;
 
         $link_url = esc_url_raw(wp_unslash($_POST['link_url']));
@@ -576,7 +774,7 @@ function leanwi_lm_add_link_page() {
         $wpdb->insert(
             $links_table,
             [
-                'area_id' => $area_id,
+                'area_id' => $area_id, // 0 until we remove this field for backwards compatibility
                 'link_url' => $link_url,
                 'title' => $title,
                 'description' => $description,
@@ -590,14 +788,40 @@ function leanwi_lm_add_link_page() {
 
         $link_id = $wpdb->insert_id;
 
-        // Save tags
-        if (!empty($_POST['tags']) && is_array($_POST['tags'])) {
-            foreach ($_POST['tags'] as $tag_id) {
-                $wpdb->insert($linktags_table, [
+        // Save program areas
+        foreach ($program_area_ids as $program_area_id) {
+            $wpdb->insert(
+                $linkprogram_area_table,
+                [
                     'link_id' => $link_id,
-                    'tag_id' => intval($tag_id)
-                ], ['%d', '%d']);
-            }
+                    'area_id' => $program_area_id,
+                ],
+                ['%d', '%d']
+            );
+        }
+
+        // Save audiences
+        foreach ($audience_ids as $audience_id) {
+            $wpdb->insert(
+                $linkaudience_table,
+                [
+                    'link_id' => $link_id,
+                    'audience_id' => $audience_id,
+                ],
+                ['%d', '%d']
+            );
+        }
+
+        // Save tags
+        foreach ($tag_ids as $tag_id) {
+            $wpdb->insert(
+                $linktags_table,
+                [
+                    'link_id' => $link_id,
+                    'tag_id' => $tag_id,
+                ],
+                ['%d', '%d']
+            );
         }
 
         // Handle related links
@@ -638,18 +862,34 @@ function leanwi_lm_add_link_page() {
     $areas = $wpdb->get_results("SELECT area_id, name FROM $areas_table ORDER BY display_order ASC", ARRAY_A);
     $formats = $wpdb->get_results("SELECT format_id, name FROM $formats_table ORDER BY display_order ASC", ARRAY_A);
     $tags = $wpdb->get_results("SELECT tag_id, name FROM $tags_table ORDER BY display_order ASC", ARRAY_A);
+    $audiences = $wpdb->get_results("SELECT audience_id, name FROM $audience_table ORDER BY display_order ASC", ARRAY_A);
     $today_date = date('Y-m-d');
 
     echo '<div class="wrap">';
     echo '<h1>Add Link</h1>';
     echo '<form method="POST">';
 
-    // Form inputs...
-    echo '<p>Program Area: <select name="area_id" required><option value="">Select Program Area</option>';
-    foreach ($areas as $area) {
-        echo '<option value="' . esc_attr($area['area_id']) . '">' . esc_html($area['name']) . '</option>';
-    }
-    echo '</select></p>';
+    // Program Area
+    echo '<p><strong>Program Areas:</strong></p>';
+    leanwi_lm_render_searchable_checkbox_picker(
+        'program_areas',
+        $areas,
+        'area_id',
+        'name',
+        [],
+        'program-areas-picker'
+    );
+
+    // Audience
+    echo '<p><strong>Audience:</strong></p>';
+    leanwi_lm_render_searchable_checkbox_picker(
+        'audiences',
+        $audiences,
+        'audience_id',
+        'name',
+        [],
+        'audience-picker'
+    );
 
     echo '<p>Format: <select name="format_id"><option value="">None</option>';
     foreach ($formats as $format) {
@@ -669,15 +909,14 @@ function leanwi_lm_add_link_page() {
 
     // Tags
     echo '<p><strong>Tags:</strong></p>';
-    if ($tags) {
-        echo '<div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:5px; max-width:800px;">';
-        foreach ($tags as $tag) {
-            echo '<label><input type="checkbox" name="tags[]" value="' . esc_attr($tag['tag_id']) . '"> ' . esc_html($tag['name']) . '</label>';
-        }
-        echo '</div>';
-    } else {
-        echo '<p>No tags available.</p>';
-    }
+    leanwi_lm_render_searchable_checkbox_picker(
+        'tags',
+        $tags,
+        'tag_id',
+        'name',
+        [],
+        'tags-picker'
+    );
 
     // Related Links
     $existing_links = $wpdb->get_results("
@@ -720,6 +959,8 @@ function leanwi_lm_add_link_page() {
             }
         });
     </script>';
+
+    leanwi_lm_render_picker_script_once();
 }
 
 
@@ -731,6 +972,9 @@ function leanwi_lm_edit_link_page() {
     $tags_table = $wpdb->prefix . 'leanwi_lm_tags';
     $linktags_table = $wpdb->prefix . 'leanwi_lm_linktags';
     $related_links_table = $wpdb->prefix . 'leanwi_lm_related_links';
+    $linkprogram_area_table = $wpdb->prefix . 'leanwi_lm_linkprogram_area';
+    $audience_table = $wpdb->prefix . 'leanwi_lm_audience';
+    $linkaudience_table = $wpdb->prefix . 'leanwi_lm_linkaudience';
 
     // Check if a link_id is provided
     if (!isset($_GET['link_id'])) {
@@ -749,7 +993,13 @@ function leanwi_lm_edit_link_page() {
 
     // Handle form submission
     if (isset($_POST['update_link'])) {
-        $area_id = intval($_POST['area_id']);
+        $program_area_ids = leanwi_lm_sanitize_id_array($_POST['program_areas'] ?? []);
+        $audience_ids = leanwi_lm_sanitize_id_array($_POST['audiences'] ?? []);
+        $tag_ids = leanwi_lm_sanitize_id_array($_POST['tags'] ?? []);
+
+        // Temporary backwards compatibility while area_id still exists on leanwi_lm_links.
+        $area_id = !empty($program_area_ids) ? $program_area_ids[0] : 0;
+
         $format_id = isset($_POST['format_id']) ? intval($_POST['format_id']) : null;
 
         $link_url = esc_url_raw(wp_unslash($_POST['link_url']));
@@ -780,7 +1030,7 @@ function leanwi_lm_edit_link_page() {
         $wpdb->update(
             $links_table,
             [
-                'area_id' => $area_id,
+                'area_id' => $area_id, // 0 for now for backwards compatibility until field is removed
                 'link_url' => $link_url,
                 'title' => $title,
                 'description' => $description,
@@ -794,18 +1044,46 @@ function leanwi_lm_edit_link_page() {
             ['%d']
         );
 
-        // Update tags: delete existing then insert new selections
+        // Update program areas
+        $wpdb->delete($linkprogram_area_table, ['link_id' => $link_id], ['%d']);
+
+        foreach ($program_area_ids as $program_area_id) {
+            $wpdb->insert(
+                $linkprogram_area_table,
+                [
+                    'link_id' => $link_id,
+                    'area_id' => $program_area_id,
+                ],
+                ['%d', '%d']
+            );
+        }
+
+        // Update audiences
+        $wpdb->delete($linkaudience_table, ['link_id' => $link_id], ['%d']);
+
+        foreach ($audience_ids as $audience_id) {
+            $wpdb->insert(
+                $linkaudience_table,
+                [
+                    'link_id' => $link_id,
+                    'audience_id' => $audience_id,
+                ],
+                ['%d', '%d']
+            );
+        }
+
+        // Update tags
         $wpdb->delete($linktags_table, ['link_id' => $link_id], ['%d']);
 
-        if (!empty($_POST['tags']) && is_array($_POST['tags'])) {
-            foreach ($_POST['tags'] as $tag_id) {
-                $tag_id = intval($tag_id);
-                $wpdb->insert(
-                    $linktags_table,
-                    ['link_id' => $link_id, 'tag_id' => $tag_id],
-                    ['%d', '%d']
-                );
-            }
+        foreach ($tag_ids as $tag_id) {
+            $wpdb->insert(
+                $linktags_table,
+                [
+                    'link_id' => $link_id,
+                    'tag_id' => $tag_id,
+                ],
+                ['%d', '%d']
+            );
         }
 
         // Handle Related Links
@@ -876,8 +1154,20 @@ function leanwi_lm_edit_link_page() {
     // Fetch Tags
     $tags = $wpdb->get_results("SELECT tag_id, name FROM $tags_table ORDER BY display_order ASC", ARRAY_A);
 
-    // Fetch currently assigned tags
-    $current_tags = $wpdb->get_col($wpdb->prepare("SELECT tag_id FROM $linktags_table WHERE link_id = %d", $link_id));
+    // Fetch currently assigned program areas, audiences and tags
+    $current_program_areas = $wpdb->get_col(
+        $wpdb->prepare("SELECT area_id FROM $linkprogram_area_table WHERE link_id = %d", $link_id)
+    );
+
+    $current_audiences = $wpdb->get_col(
+        $wpdb->prepare("SELECT audience_id FROM $linkaudience_table WHERE link_id = %d", $link_id)
+    );
+    $current_tags = $wpdb->get_col(
+        $wpdb->prepare("SELECT tag_id FROM $linktags_table WHERE link_id = %d", $link_id)
+    );
+
+    //Get all audiences
+    $audiences = $wpdb->get_results("SELECT audience_id, name FROM $audience_table ORDER BY display_order ASC", ARRAY_A);
 
     $related_links_table = $wpdb->prefix . 'leanwi_lm_related_links';
 
@@ -912,14 +1202,26 @@ function leanwi_lm_edit_link_page() {
     echo '<form method="POST">';
 
     // Program Area dropdown
-    echo '<p>Program Area: <select name="area_id" required>';
-    echo '<option value="">Select Program Area</option>';
-    if ($areas) {
-        foreach ($areas as $area) {
-            echo '<option value="' . esc_attr($area['area_id']) . '" ' . selected($area['area_id'], $link['area_id'], false) . '>' . esc_html($area['name']) . '</option>';
-        }
-    }
-    echo '</select></p>';
+    echo '<p><strong>Program Areas:</strong></p>';
+    leanwi_lm_render_searchable_checkbox_picker(
+        'program_areas',
+        $areas,
+        'area_id',
+        'name',
+        $current_program_areas,
+        'program-areas-picker'
+    );
+
+    //Audience dropdown
+    echo '<p><strong>Audience:</strong></p>';
+    leanwi_lm_render_searchable_checkbox_picker(
+        'audiences',
+        $audiences,
+        'audience_id',
+        'name',
+        $current_audiences,
+        'audience-picker'
+    );
 
     // Format dropdown
     echo '<p>Format: <select name="format_id">';
@@ -953,16 +1255,14 @@ function leanwi_lm_edit_link_page() {
 
     // Tags checkboxes in a 4-column grid
     echo '<p><strong>Tags:</strong></p>';
-    if ($tags) {
-        echo '<div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:5px; max-width:800px;">';
-        foreach ($tags as $tag) {
-            $checked = in_array($tag['tag_id'], $current_tags) ? 'checked' : '';
-            echo '<label><input type="checkbox" name="tags[]" value="' . esc_attr($tag['tag_id']) . '" ' . $checked . '> ' . esc_html($tag['name']) . '</label>';
-        }
-        echo '</div>';
-    } else {
-        echo '<p>No tags available.</p>';
-    }
+    leanwi_lm_render_searchable_checkbox_picker(
+        'tags',
+        $tags,
+        'tag_id',
+        'name',
+        $current_tags,
+        'tags-picker'
+    );
 
     // Related Links multi-select with filter
     echo '<p><strong>Relate to Existing Links:</strong> (Hold Ctrl/Cmd to select multiple)</p>';
@@ -1002,6 +1302,8 @@ function leanwi_lm_edit_link_page() {
 
     echo '</form>';
     echo '</div>';
+
+    leanwi_lm_render_picker_script_once();
 }
 
 
@@ -1457,6 +1759,212 @@ function leanwi_lm_edit_format_page() {
         // Redirect back if no format ID is provided
         echo '<div class="error"><p>No format ID provided.</p></div>';
     }
+}
+
+/**************************************************************************************************
+ * Audience
+ **************************************************************************************************/
+function leanwi_lm_audience_page() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'leanwi_lm_audience';
+
+    // Handle display order update
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_display_order'])) {
+        if (isset($_POST['display_order']) && is_array($_POST['display_order'])) {
+            foreach ($_POST['display_order'] as $audience_id => $display_order) {
+                $audience_id = intval($audience_id);
+                $display_order = intval($display_order);
+
+                $wpdb->update(
+                    $table_name,
+                    ['display_order' => $display_order],
+                    ['audience_id' => $audience_id],
+                    ['%d'],
+                    ['%d']
+                );
+            }
+
+            echo '<div class="updated notice"><p>Display order updated successfully.</p></div>';
+        }
+    }
+
+    // Fetch audience records
+    $audiences = $wpdb->get_results("SELECT * FROM $table_name ORDER BY display_order ASC", ARRAY_A);
+
+    echo '<div class="wrap">';
+    echo '<h1>Audience</h1>';
+
+    echo '<a href="' . admin_url('admin.php?page=leanwi-lm-add-audience') . '" class="button button-primary">Add Audience</a>';
+    echo '<p></p>';
+
+    echo '<form method="POST">';
+    echo '<table class="wp-list-table widefat striped">';
+    echo '<thead><tr>
+        <th>Audience ID</th>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Display Order</th>
+        <th>Actions</th>
+    </tr></thead>';
+    echo '<tbody>';
+
+    if ($audiences) {
+        foreach ($audiences as $audience) {
+            echo '<tr>';
+            echo '<td>' . esc_html($audience['audience_id']) . '</td>';
+            echo '<td>' . esc_html($audience['name']) . '</td>';
+            echo '<td>' . esc_html($audience['description']) . '</td>';
+            echo '<td><input type="number" name="display_order[' . esc_attr($audience['audience_id']) . ']" value="' . esc_attr($audience['display_order']) . '" style="width:60px;"></td>';
+            echo '<td>';
+            echo '<a href="' . admin_url('admin.php?page=leanwi-lm-edit-audience&audience_id=' . $audience['audience_id']) . '" class="button" style="margin-right:8px;">Edit</a>';
+            echo '<a href="' . admin_url('admin.php?page=leanwi-lm-delete-audience&audience_id=' . $audience['audience_id']) . '" class="button" onclick="return confirm(\'Are you sure you want to delete this audience?\');">Delete</a>';
+            echo '</td>';
+            echo '</tr>';
+        }
+    } else {
+        echo '<tr><td colspan="5">No audience records found.</td></tr>';
+    }
+
+    echo '</tbody></table>';
+    echo '<p><input type="submit" name="save_display_order" value="Save Display Order" class="button button-primary"></p>';
+    echo '</form>';
+    echo '</div>';
+}
+
+function leanwi_lm_add_audience_page() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'leanwi_lm_audience';
+
+    // Handle form submission
+    if (isset($_POST['add_audience'])) {
+        $name = sanitize_text_field(wp_unslash($_POST['name']));
+        $description = sanitize_text_field(wp_unslash($_POST['description']));
+
+        // Determine new display order
+        $max_order = $wpdb->get_var("SELECT MAX(display_order) FROM $table_name");
+        $new_order = ($max_order !== null) ? $max_order + 1 : 1;
+
+        $wpdb->insert(
+            $table_name,
+            [
+                'name' => $name,
+                'description' => $description,
+                'display_order' => $new_order,
+            ],
+            ['%s', '%s', '%d']
+        );
+
+        echo '<div class="updated"><p>Audience added successfully.</p></div>';
+    }
+
+    // Display form
+    echo '<div class="wrap">';
+    echo '<h1>Add Audience</h1>';
+    echo '<form method="POST">';
+    echo '<p>Audience Name: <input type="text" name="name" required style="width:300px;"></p>';
+    echo '<p>Audience Description: <input type="text" name="description" style="width:600px;"></p>';
+    echo '<p><input type="submit" name="add_audience" value="Add Audience" class="button button-primary"></p>';
+    echo '</form>';
+    echo '</div>';
+}
+
+function leanwi_lm_edit_audience_page() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'leanwi_lm_audience';
+
+    // Handle form submission
+    if (isset($_POST['update_audience'])) {
+        $audience_id = intval($_POST['audience_id']);
+        $name = sanitize_text_field(wp_unslash($_POST['name']));
+        $description = sanitize_text_field(wp_unslash($_POST['description']));
+
+        $wpdb->update(
+            $table_name,
+            [
+                'name' => $name,
+                'description' => $description,
+            ],
+            ['audience_id' => $audience_id],
+            ['%s', '%s'],
+            ['%d']
+        );
+
+        echo '<div class="updated"><p>Audience updated successfully.</p></div>';
+    }
+
+    // Fetch audience for editing
+    if (isset($_GET['audience_id'])) {
+        $audience_id = intval($_GET['audience_id']);
+        $audience = $wpdb->get_row(
+            $wpdb->prepare("SELECT * FROM $table_name WHERE audience_id = %d", $audience_id)
+        );
+
+        if ($audience) {
+            echo '<div class="wrap">';
+            echo '<h1>Edit Audience</h1>';
+            echo '<form method="POST">';
+            echo '<input type="hidden" name="audience_id" value="' . esc_attr($audience->audience_id) . '">';
+            echo '<p>Audience Name: <input type="text" name="name" value="' . esc_attr($audience->name) . '" style="width:300px;"></p>';
+            echo '<p>Audience Description: <input type="text" name="description" value="' . esc_attr($audience->description) . '" style="width:600px;"></p>';
+            echo '<p><input type="submit" name="update_audience" value="Save Changes" class="button button-primary"></p>';
+            echo '</form>';
+            echo '</div>';
+        } else {
+            echo '<div class="error"><p>Audience not found.</p></div>';
+        }
+    } else {
+        echo '<div class="error"><p>No audience ID provided.</p></div>';
+    }
+}
+
+function leanwi_lm_delete_audience_page() {
+    global $wpdb;
+    $audience_table = $wpdb->prefix . 'leanwi_lm_audience';
+    $linkaudience_table = $wpdb->prefix . 'leanwi_lm_linkaudience';
+
+    // Get and validate ID
+    $audience_id = isset($_GET['audience_id']) ? intval($_GET['audience_id']) : 0;
+
+    if (!$audience_id) {
+        echo '<div class="notice notice-error"><p>Invalid audience ID.</p></div>';
+        return;
+    }
+
+    // Check if audience exists
+    $audience = $wpdb->get_row(
+        $wpdb->prepare("SELECT * FROM $audience_table WHERE audience_id = %d", $audience_id)
+    );
+
+    if (!$audience) {
+        echo '<div class="notice notice-error"><p>Audience not found.</p></div>';
+        return;
+    }
+
+    // Check if any links are using this audience
+    $link_count = $wpdb->get_var(
+        $wpdb->prepare("SELECT COUNT(*) FROM $linkaudience_table WHERE audience_id = %d", $audience_id)
+    );
+
+    if ($link_count > 0) {
+        echo '<div class="notice notice-error"><p>This audience cannot be deleted because it is assigned to ' . intval($link_count) . ' link(s).</p></div>';
+        echo '<p><a href="' . esc_url(admin_url('admin.php?page=leanwi-lm-audience')) . '" class="button">Back to Audience</a></p>';
+        return;
+    }
+
+    // Perform the delete
+    $deleted = $wpdb->delete(
+        $audience_table,
+        ['audience_id' => $audience_id],
+        ['%d']
+    );
+
+    if ($deleted) {
+        echo '<div class="notice notice-success"><p>Audience deleted successfully.</p></div>';
+    } else {
+        echo '<div class="notice notice-error"><p>Failed to delete audience.</p></div>';
+    }
+
+    echo '<p><a href="' . esc_url(admin_url('admin.php?page=leanwi-lm-audience')) . '" class="button">Back to Audience</a></p>';
 }
 
 /**************************************************************************************************

@@ -52,30 +52,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $sql = "
         SELECT
             l.title AS 'Link Title',
-            Date(l.creation_date) AS 'Date Created',
+            DATE(l.creation_date) AS 'Date Created',
             l.description AS 'Link Description',
             CASE 
                 WHEN l.is_featured_link = 1 THEN 'Yes' 
                 ELSE 'No' 
             END AS 'Featured Link?',
-            Date(l.revise_date) AS 'Revise By Date',
+            DATE(l.revise_date) AS 'Revise By Date',
             f.name AS 'Format',
-            a.name AS 'Program Area'
+            GROUP_CONCAT(DISTINCT a.name ORDER BY a.display_order ASC SEPARATOR ', ') AS 'Program Areas'
         FROM 
             $links_table l
         LEFT JOIN {$wpdb->prefix}leanwi_lm_formats f 
             ON l.format_id = f.format_id
+        LEFT JOIN {$wpdb->prefix}leanwi_lm_linkprogram_area lpa 
+            ON l.link_id = lpa.link_id
         LEFT JOIN {$wpdb->prefix}leanwi_lm_program_area a 
-            ON l.area_id = a.area_id
+            ON lpa.area_id = a.area_id
         WHERE 
-            revise_date < CURRENT_TIMESTAMP
-        ORDER BY revise_date ASC
+            l.revise_date < CURRENT_TIMESTAMP
+        GROUP BY 
+            l.link_id
+        ORDER BY 
+            l.revise_date ASC
     ";
     
-    $results = $wpdb->get_results(
-        $wpdb->prepare($sql),
-        ARRAY_A
-    );
+    $results = $wpdb->get_results($sql, ARRAY_A);
 
     if (!empty($results)) {
         // Add heading for the summary section

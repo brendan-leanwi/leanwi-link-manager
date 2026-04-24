@@ -70,6 +70,7 @@ jQuery(document).ready(function($) {
         $form.find('select[name="area_id"]').val('');
         $form.find('select[name="format_id"]').val('');
         $form.find('select[name="tag_id"]').val('');
+        $form.find('select[name="audience_id"]').val('');
         $form.find('input[name="start_date"]').val('');
         $form.find('input[name="end_date"]').val('');
         $form.find('input[name="search"]').val('');

@@ -17,17 +17,22 @@ function leanwi_link_manager_links_list_shortcode($atts) {
         'area_id'      => '',
         'tag_id'       => '',
         'format_id'    => '',
+        'audience_id' => '',
         'max_listings' => '0',
     ], $atts, 'link_manager_links_list');
 
     $area_ids   = leanwi_lm_parse_csv_ids($atts['area_id']);
     $tag_ids    = leanwi_lm_parse_csv_ids($atts['tag_id']);
     $format_ids = leanwi_lm_parse_csv_ids($atts['format_id']);
+    $audience_ids = leanwi_lm_parse_csv_ids($atts['audience_id']);
     $limit      = max(0, intval($atts['max_listings']));
 
     $links_table    = $wpdb->prefix . 'leanwi_lm_links';
     $linktags_table = $wpdb->prefix . 'leanwi_lm_linktags';
     $formats_table  = $wpdb->prefix . 'leanwi_lm_formats';
+    $linkaudience_table = $wpdb->prefix . 'leanwi_lm_linkaudience';
+    $areas_table     = $wpdb->prefix . 'leanwi_lm_program_area';
+    $linkprogram_area_table = $wpdb->prefix . 'leanwi_lm_linkprogram_area';
 
     $sql = "
         SELECT DISTINCT
@@ -36,22 +41,36 @@ function leanwi_link_manager_links_list_shortcode($atts) {
             l.title,
             l.format_id,
             f.icon_url,
-            f.use_icon
-        FROM {$links_table} l
-        LEFT JOIN {$formats_table} f ON l.format_id = f.format_id
+            f.use_icon,
+            GROUP_CONCAT(DISTINCT a.name ORDER BY a.display_order ASC SEPARATOR ', ') AS area_name
+        FROM $links_table l
+        LEFT JOIN $formats_table f ON l.format_id = f.format_id
+        LEFT JOIN $linkprogram_area_table lpa_display ON l.link_id = lpa_display.link_id
+        LEFT JOIN $areas_table a ON lpa_display.area_id = a.area_id
     ";
 
     $where  = [];
     $params = [];
+
+    if (!empty($audience_ids)) {
+        $sql .= " INNER JOIN {$linkaudience_table} la ON l.link_id = la.link_id ";
+    }
 
     if (!empty($tag_ids)) {
         $sql .= " INNER JOIN {$linktags_table} lt ON l.link_id = lt.link_id ";
     }
 
     if (!empty($area_ids)) {
+        $sql .= " INNER JOIN $linkprogram_area_table lpa ON l.link_id = lpa.link_id ";
         $placeholders = implode(',', array_fill(0, count($area_ids), '%d'));
-        $where[] = "l.area_id IN ({$placeholders})";
+        $where[] = "lpa.area_id IN ($placeholders)";
         $params = array_merge($params, $area_ids);
+    }
+
+    if (!empty($audience_ids)) {
+        $placeholders = implode(',', array_fill(0, count($audience_ids), '%d'));
+        $where[] = "la.audience_id IN ({$placeholders})";
+        $params = array_merge($params, $audience_ids);
     }
 
     if (!empty($format_ids)) {
@@ -70,6 +89,7 @@ function leanwi_link_manager_links_list_shortcode($atts) {
         $sql .= " WHERE " . implode(' AND ', $where);
     }
 
+    $sql .= " GROUP BY l.link_id ";
     $sql .= " ORDER BY l.title ASC ";
 
     if ($limit > 0) {
