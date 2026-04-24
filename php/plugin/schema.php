@@ -63,6 +63,30 @@ function leanwi_lm_create_tables() {
         PRIMARY KEY (relationship_id, link_id),
         FOREIGN KEY (link_id) REFERENCES {$wpdb->prefix}leanwi_lm_links(link_id) ON DELETE CASCADE
     ) $engine $charset_collate;";
+
+    $sql7 = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}leanwi_lm_audience (
+        audience_id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        display_order INT NOT NULL
+    ) $engine $charset_collate;";
+
+    $sql8 = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}leanwi_lm_linkaudience (
+        link_id INT NOT NULL,
+        audience_id INT NOT NULL,
+        PRIMARY KEY (link_id, audience_id),
+        FOREIGN KEY (link_id) REFERENCES {$wpdb->prefix}leanwi_lm_links(link_id) ON DELETE CASCADE,
+        FOREIGN KEY (audience_id) REFERENCES {$wpdb->prefix}leanwi_lm_audience(audience_id) ON DELETE CASCADE
+    ) $engine $charset_collate;";
+
+    $sql9 = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}leanwi_lm_linkprogram_area (
+        link_id INT NOT NULL,
+        area_id INT NOT NULL,
+        PRIMARY KEY (link_id, area_id),
+        FOREIGN KEY (link_id) REFERENCES {$wpdb->prefix}leanwi_lm_links(link_id) ON DELETE CASCADE,
+        FOREIGN KEY (area_id) REFERENCES {$wpdb->prefix}leanwi_lm_program_area(area_id) ON DELETE CASCADE
+    ) $engine $charset_collate;";
+
     // Execute the SQL queries
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
@@ -130,6 +154,34 @@ function leanwi_lm_create_tables() {
         error_log($e->getMessage());
     }
 
+    try {
+        dbDelta($sql7);
+        if ($wpdb->last_error) {
+            error_log('DB Error7: ' . $wpdb->last_error);
+        }
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+    }
+
+    try {
+        dbDelta($sql8);
+        if ($wpdb->last_error) {
+            error_log('DB Error8: ' . $wpdb->last_error);
+        }
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+    }
+
+    try {
+        dbDelta($sql9);
+        if ($wpdb->last_error) {
+            error_log('DB Error9: ' . $wpdb->last_error);
+        }
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+    }
+
+    /* CODE TO ADD REVISE DATE - THIS UPDATE SHOULD BE LONG GONE...
     // Define the table name
     $table_name = $wpdb->prefix . 'leanwi_lm_links';
 
@@ -158,6 +210,27 @@ function leanwi_lm_create_tables() {
         if ($result === false) {
             error_log("Failed to add new column to $table_name: " . $wpdb->last_error);
         }
+    }*/
+
+    // Backfill leanwi_lm_linkprogram_area from existing leanwi_lm_links.area_id.
+    // This preserves each existing link's current single program area as its first many-to-many entry.
+    $links_table = $wpdb->prefix . 'leanwi_lm_links';
+    $linkprogram_area_table = $wpdb->prefix . 'leanwi_lm_linkprogram_area';
+
+    try {
+        $wpdb->query(
+            "INSERT IGNORE INTO $linkprogram_area_table (link_id, area_id)
+            SELECT link_id, area_id
+            FROM $links_table
+            WHERE area_id IS NOT NULL
+            AND area_id > 0"
+        );
+
+        if ($wpdb->last_error) {
+            error_log('DB Error linkprogram_area backfill: ' . $wpdb->last_error);
+        }
+    } catch (Exception $e) {
+        error_log($e->getMessage());
     }
 }
 
@@ -168,9 +241,12 @@ function leanwi_lm_drop_tables() {
 
     // SQL to drop the tables
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_related_links");
+    $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_linkaudience");
+    $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_linkprogram_area");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_linktags");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_links");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_formats");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_program_area");
+    $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_audience");
     $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}leanwi_lm_tags");
 }
