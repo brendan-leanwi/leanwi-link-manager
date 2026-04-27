@@ -137,7 +137,7 @@ function leanwi_filter_links() {
         echo '<p>No links found.</p>';
     } else {
         echo '<table class="leanwi-lm-results-table"><thead><tr>';
-        echo '<th>Date</th><th>Title</th><th>Format</th><th>Description</th><th>Program Area</th><th>Tags</th><th>Related Links</th>';
+        echo '<th>Date</th><th>Title</th><th>Format</th><th>Program Area</th><th>Tags</th><th>Related Links</th>';
         echo '</tr></thead><tbody>';
 
         foreach ($results as $link) {
@@ -150,7 +150,6 @@ function leanwi_filter_links() {
             echo '<td data-label="Title"><a href="' . esc_url($link['link_url']) . '" target="_blank" title="' . esc_attr($link['description']) . '">' . esc_html($link['title']) . '</a></td>';
             
             echo '<td data-label="Format">' . esc_html($link['format_name']) . '</td>';
-            echo '<td data-label="Description">' . esc_html($link['description']) . '</td>';
             echo '<td data-label="Program Area">' . esc_html($link['area_name']) . '</td>';
             
             // Get tags for this link
