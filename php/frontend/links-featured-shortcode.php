@@ -12,12 +12,18 @@ function leanwi_link_featured_shortcode($atts) {
         'format_id'   => '',
         'tag_id'      => '',
         'audience_id' => '',
+        'max_items'    => '3',
+        'border_color' => '',
+        'title_color' => '',
     ], $atts, 'link_manager_featured');
 
     $area_ids     = array_filter(array_map('intval', explode(',', $atts['area_id'])));
     $format_ids   = array_filter(array_map('intval', explode(',', $atts['format_id'])));
     $tag_ids      = array_filter(array_map('intval', explode(',', $atts['tag_id'])));
     $audience_ids = array_filter(array_map('intval', explode(',', $atts['audience_id'])));
+    $max_items = max(0, intval($atts['max_items']));
+    $border_color = sanitize_hex_color($atts['border_color']);
+    $title_color = sanitize_hex_color($atts['title_color']);
 
     $links_table              = $wpdb->prefix . 'leanwi_lm_links';
     $areas_table              = $wpdb->prefix . 'leanwi_lm_program_area';
@@ -76,7 +82,12 @@ function leanwi_link_featured_shortcode($atts) {
     }
 
     $query .= " GROUP BY l.link_id ";
-    $query .= " ORDER BY l.creation_date DESC LIMIT 3";
+    $query .= " ORDER BY l.creation_date DESC";
+
+    if ($max_items > 0) {
+        $query .= " LIMIT %d";
+        $params[] = $max_items;
+    }
 
     $prepared = !empty($params)
         ? $wpdb->prepare($query, $params)
@@ -93,7 +104,19 @@ function leanwi_link_featured_shortcode($atts) {
     echo '<div class="leanwi-featured-grid">';
 
     foreach ($results as $link) {
-        echo '<div class="leanwi-featured-item">';
+        $styles = [];
+        if ($border_color) {
+            $styles[] = '--leanwi-featured-border:' . esc_attr($border_color);
+        }
+
+        if ($title_color) {
+            $styles[] = '--leanwi-featured-title:' . esc_attr($title_color);
+        }
+
+        $style = !empty($styles)
+            ? ' style="' . implode(';', $styles) . ';"'
+            : '';
+        echo '<div class="leanwi-featured-item"' . $style . '>';
         echo '<h3><a href="' . esc_url($link['link_url']) . '" target="_blank" rel="noopener" title="' . esc_attr($link['description']) . '">' . esc_html($link['title']) . '</a></h3>';
         echo '<p>' . esc_html(wp_trim_words($link['description'], 25)) . '</p>';
 

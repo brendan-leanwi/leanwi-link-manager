@@ -49,6 +49,15 @@ function leanwi_filter_links() {
 
     $max_listings = isset($_POST['max_listings']) ? intval($_POST['max_listings']) : 0;
 
+    $opening_request = isset($_POST['opening_request']) && $_POST['opening_request'] === '1';
+
+    if ($opening_request && $max_listings === 0) {
+        echo '<div class="leanwi-lm-empty" role="status" aria-live="polite">
+            <p>Enter a keyword or use the filters to search links.</p>
+        </div>';
+        wp_die();
+    }
+
     //error_log('Max listings received: ' . print_r($_POST['max_listings'], true));
 
     // Build base query
@@ -137,7 +146,14 @@ function leanwi_filter_links() {
         echo '<p>No links found.</p>';
     } else {
         echo '<table class="leanwi-lm-results-table"><thead><tr>';
-        echo '<th>Date</th><th>Title</th><th>Format</th><th>Program Area</th><th>Tags</th><th>Related Links</th>';
+        echo '
+            <th style="width: 12%;">Date</th>
+            <th style="width: 38%;">Title</th>
+            <th style="width: 10%;">Format</th>
+            <th style="width: 14%;">Program Area</th>
+            <th style="width: 10%;">Tags</th>
+            <th style="width: 16%;">Related Links</th>
+            ';
         echo '</tr></thead><tbody>';
 
         foreach ($results as $link) {
