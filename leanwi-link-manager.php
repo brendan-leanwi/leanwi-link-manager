@@ -59,7 +59,7 @@ function leanwi_lm_enqueue_scripts() {
         'leanwi-link-manager-ajax',
         plugin_dir_url(__FILE__) . 'js/leanwi-link-manager.js',
         ['jquery'],
-        '1.0',
+        filemtime(plugin_dir_path(__FILE__) . 'js/leanwi-link-manager.js'),
         true
     );
 

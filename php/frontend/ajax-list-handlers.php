@@ -4,6 +4,18 @@ namespace LEANWI_Link_Manager;
 add_action('wp_ajax_leanwi_filter_links', __NAMESPACE__ . '\\leanwi_filter_links');
 add_action('wp_ajax_nopriv_leanwi_filter_links', __NAMESPACE__ . '\\leanwi_filter_links');
 
+function leanwi_lm_parse_post_ids($value) {
+    if (empty($value)) {
+        return [];
+    }
+
+    if (is_array($value)) {
+        $value = implode(',', $value);
+    }
+
+    return array_filter(array_map('intval', explode(',', $value)));
+}
+
 function leanwi_filter_links() {
     check_ajax_referer('leanwi_filter_links', 'nonce');
 
@@ -21,19 +33,15 @@ function leanwi_filter_links() {
     $linkprogram_area_table = $wpdb->prefix . 'leanwi_lm_linkprogram_area';
 
     // Get and sanitize filter parameters
-    $initial_area_id = !empty($_POST['initial_area_id']) ? array_filter(array_map('intval', explode(',', $_POST['initial_area_id']))) : [];
-    $initial_format_id = !empty($_POST['initial_format_id']) ? array_filter(array_map('intval', explode(',', $_POST['initial_format_id']))) : [];
-    $initial_tag_id = !empty($_POST['initial_tag_id']) ? array_filter(array_map('intval', explode(',', $_POST['initial_tag_id']))) : [];
-    $initial_audience_id = !empty($_POST['initial_audience_id'])
-        ? array_filter(array_map('intval', explode(',', $_POST['initial_audience_id'])))
-        : [];
+    $initial_area_id = leanwi_lm_parse_post_ids($_POST['initial_area_id'] ?? '');
+    $initial_format_id = leanwi_lm_parse_post_ids($_POST['initial_format_id'] ?? '');
+    $initial_tag_id = leanwi_lm_parse_post_ids($_POST['initial_tag_id'] ?? '');
+    $initial_audience_id = leanwi_lm_parse_post_ids($_POST['initial_audience_id'] ?? '');
 
-    $current_area_id = isset($_POST['area_id']) ? array_filter(array_map('intval', (array) $_POST['area_id'])) : [];
-    $current_format_id = isset($_POST['format_id']) ? array_filter(array_map('intval', (array) $_POST['format_id'])) : [];
-    $current_tag_id = isset($_POST['tag_id']) ? array_filter(array_map('intval', (array) $_POST['tag_id'])) : [];
-    $current_audience_id = isset($_POST['audience_id'])
-        ? array_filter(array_map('intval', (array) $_POST['audience_id']))
-        : [];
+    $current_area_id = leanwi_lm_parse_post_ids($_POST['area_id'] ?? '');
+    $current_format_id = leanwi_lm_parse_post_ids($_POST['format_id'] ?? '');
+    $current_tag_id = leanwi_lm_parse_post_ids($_POST['tag_id'] ?? '');
+    $current_audience_id = leanwi_lm_parse_post_ids($_POST['audience_id'] ?? '');
 
     $start_date = !empty($_POST['start_date']) ? sanitize_text_field($_POST['start_date']) : '';
     $end_date = !empty($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : '';
