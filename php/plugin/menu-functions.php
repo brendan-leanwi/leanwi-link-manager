@@ -739,123 +739,176 @@ function leanwi_lm_add_link_page() {
     $audience_table = $wpdb->prefix . 'leanwi_lm_audience';
     $linkaudience_table = $wpdb->prefix . 'leanwi_lm_linkaudience';
 
+    $values = [];
+    $error = '';
+    $transaction_started = false;
     // Handle form submission
     if (isset($_POST['add_link'])) {
-        $program_area_ids = leanwi_lm_sanitize_id_array($_POST['program_areas'] ?? []);
-        $audience_ids = leanwi_lm_sanitize_id_array($_POST['audiences'] ?? []);
-        $tag_ids = leanwi_lm_sanitize_id_array($_POST['tags'] ?? []);
+        $values = wp_unslash($_POST);
+        try {
+            if (!current_user_can('manage_options') || !isset($_POST['leanwi_lm_nonce']) ||
+                !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['leanwi_lm_nonce'])), 'leanwi_lm_add_link')) {
+                throw new \RuntimeException('Your session has expired or you cannot add links. Please reload this page and try again.');
+            }
+            $program_area_ids = leanwi_lm_sanitize_id_array($_POST['program_areas'] ?? []);
+            $audience_ids = leanwi_lm_sanitize_id_array($_POST['audiences'] ?? []);
+            $tag_ids = leanwi_lm_sanitize_id_array($_POST['tags'] ?? []);
 
-        // Temporary backwards compatibility while area_id still exists on leanwi_lm_links.
-        $area_id = !empty($program_area_ids) ? $program_area_ids[0] : 0;
+            // Temporary backwards compatibility while area_id still exists on leanwi_lm_links.
+            $area_id = !empty($program_area_ids) ? $program_area_ids[0] : 0;
 
-        $format_id = isset($_POST['format_id']) ? intval($_POST['format_id']) : null;
+            $format_id = isset($_POST['format_id']) ? intval($_POST['format_id']) : null;
 
-        $link_url = esc_url_raw(wp_unslash($_POST['link_url']));
-        $title = sanitize_text_field(wp_unslash($_POST['title']));
-        $description = sanitize_text_field(wp_unslash($_POST['description']));
-        $is_featured_link = isset($_POST['is_featured_link']) ? 1 : 0;
+            $link_url = esc_url_raw(wp_unslash($_POST['link_url'] ?? ''));
+            $title = sanitize_text_field(wp_unslash($_POST['title'] ?? ''));
+            $description = sanitize_text_field(wp_unslash($_POST['description'] ?? ''));
+            $is_featured_link = isset($_POST['is_featured_link']) ? 1 : 0;
 
-        $creation_date = !empty($_POST['creation_date'])
-            ? sanitize_text_field($_POST['creation_date']) . ' 00:00:00'
-            : current_time('mysql');
+            $creation_date = !empty($_POST['creation_date'])
+                ? sanitize_text_field($_POST['creation_date']) . ' 00:00:00'
+                : current_time('mysql');
 
-        // Handle revise_date input
-        if (!empty($_POST['revise_date'])) {
-            // use the chosen date (force midnight for consistency)
-            $revise_date = sanitize_text_field($_POST['revise_date']) . ' 00:00:00';
-        } else {
-            // default: 6 months from current time
-            $revise_date = date(
-                'Y-m-d',
-                strtotime('+6 months', current_time('timestamp'))
-            ) . ' 00:00:00';
-        }
+            // Handle revise_date input
+            if (!empty($_POST['revise_date'])) {
+                // use the chosen date (force midnight for consistency)
+                $revise_date = sanitize_text_field($_POST['revise_date']) . ' 00:00:00';
+            } else {
+                // default: 6 months from current time
+                $revise_date = date(
+                    'Y-m-d',
+                    strtotime('+6 months', current_time('timestamp'))
+                ) . ' 00:00:00';
+            }
 
-        $wpdb->insert(
-            $links_table,
-            [
-                'area_id' => $area_id, // 0 until we remove this field for backwards compatibility
-                'link_url' => $link_url,
-                'title' => $title,
-                'description' => $description,
-                'format_id' => $format_id,
-                'is_featured_link' => $is_featured_link,
-                'creation_date' => $creation_date,
-                'revise_date' => $revise_date
-            ],
-            ['%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s']
-        );
-
-        $link_id = $wpdb->insert_id;
-
-        // Save program areas
-        foreach ($program_area_ids as $program_area_id) {
-            $wpdb->insert(
-                $linkprogram_area_table,
-                [
-                    'link_id' => $link_id,
-                    'area_id' => $program_area_id,
-                ],
-                ['%d', '%d']
-            );
-        }
-
-        // Save audiences
-        foreach ($audience_ids as $audience_id) {
-            $wpdb->insert(
-                $linkaudience_table,
-                [
-                    'link_id' => $link_id,
-                    'audience_id' => $audience_id,
-                ],
-                ['%d', '%d']
-            );
-        }
-
-        // Save tags
-        foreach ($tag_ids as $tag_id) {
-            $wpdb->insert(
-                $linktags_table,
-                [
-                    'link_id' => $link_id,
-                    'tag_id' => $tag_id,
-                ],
-                ['%d', '%d']
-            );
-        }
-
-        // Handle related links
-        $relationship_id = null;
-        if (!empty($_POST['related_links']) && is_array($_POST['related_links'])) {
-            $related_link_ids = array_map('intval', $_POST['related_links']);
-
-            $existing_relationship = $wpdb->get_var($wpdb->prepare(
-                "SELECT relationship_id FROM $related_links_table WHERE link_id = %d LIMIT 1",
-                $related_link_ids[0]
-            ));
-            $relationship_id = $existing_relationship ?: (int) $wpdb->get_var("SELECT MAX(relationship_id) FROM $related_links_table") + 1;
-
-            $wpdb->insert($related_links_table, [
-                'relationship_id' => $relationship_id,
-                'link_id' => $link_id
-            ], ['%d', '%d']);
-
-            foreach ($related_link_ids as $related_link_id) {
-                $exists = $wpdb->get_var($wpdb->prepare(
-                    "SELECT 1 FROM $related_links_table WHERE relationship_id = %d AND link_id = %d",
-                    $relationship_id,
-                    $related_link_id
-                ));
-                if (!$exists) {
-                    $wpdb->insert($related_links_table, [
-                        'relationship_id' => $relationship_id,
-                        'link_id' => $related_link_id
-                    ], ['%d', '%d']);
+            if (empty($program_area_ids)) {
+                throw new \RuntimeException('Please select at least one Program Area.');
+            }
+            foreach ($program_area_ids as $id) {
+                if (!$wpdb->get_var($wpdb->prepare("SELECT area_id FROM $areas_table WHERE area_id = %d", $id))) {
+                    throw new \RuntimeException('Please select an available Program Area.');
                 }
             }
-        }
+            if (!$format_id || !$wpdb->get_var($wpdb->prepare("SELECT format_id FROM $formats_table WHERE format_id = %d", $format_id))) {
+                throw new \RuntimeException('Please select a Format.');
+            }
+            if (!$link_url || !filter_var($link_url, FILTER_VALIDATE_URL)) {
+                throw new \RuntimeException('Please enter a valid Link URL.');
+            }
+            if (trim($title) === '') {
+                throw new \RuntimeException('Please enter a Title.');
+            }
 
-        echo '<div class="updated"><p>Link added successfully with tags.</p></div>';
+            // Keep the link and all its associations together (plugin tables use InnoDB).
+            $database_error = function() use ($wpdb) {
+                error_log('LEANWI Link Manager add link: ' . $wpdb->last_error);
+                throw new \RuntimeException('The link could not be saved because of a database error. Your entries have been kept; please try again or contact your administrator.');
+            };
+            if ($wpdb->query('START TRANSACTION') === false) {
+                $database_error();
+            }
+            $transaction_started = true;
+            $insert = function($table, $data, $formats) use ($wpdb, $database_error) {
+                if ($wpdb->insert($table, $data, $formats) === false) {
+                    $database_error();
+                }
+            };
+
+            $insert(
+                $links_table,
+                [
+                    'area_id' => $area_id, // First selected program area for backwards compatibility
+                    'link_url' => $link_url,
+                    'title' => $title,
+                    'description' => $description,
+                    'format_id' => $format_id,
+                    'is_featured_link' => $is_featured_link,
+                    'creation_date' => $creation_date,
+                    'revise_date' => $revise_date
+                ],
+                ['%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s']
+            );
+
+            $link_id = $wpdb->insert_id;
+
+            // Save program areas
+            foreach ($program_area_ids as $program_area_id) {
+                $insert(
+                    $linkprogram_area_table,
+                    [
+                        'link_id' => $link_id,
+                        'area_id' => $program_area_id,
+                    ],
+                    ['%d', '%d']
+                );
+            }
+
+            // Save audiences
+            foreach ($audience_ids as $audience_id) {
+                $insert(
+                    $linkaudience_table,
+                    [
+                        'link_id' => $link_id,
+                        'audience_id' => $audience_id,
+                    ],
+                    ['%d', '%d']
+                );
+            }
+
+            // Save tags
+            foreach ($tag_ids as $tag_id) {
+                $insert(
+                    $linktags_table,
+                    [
+                        'link_id' => $link_id,
+                        'tag_id' => $tag_id,
+                    ],
+                    ['%d', '%d']
+                );
+            }
+
+            // Handle related links
+            $relationship_id = null;
+            if (!empty($_POST['related_links']) && is_array($_POST['related_links'])) {
+                $related_link_ids = array_map('intval', $_POST['related_links']);
+
+                $existing_relationship = $wpdb->get_var($wpdb->prepare(
+                    "SELECT relationship_id FROM $related_links_table WHERE link_id = %d LIMIT 1",
+                    $related_link_ids[0]
+                ));
+                $relationship_id = $existing_relationship ?: (int) $wpdb->get_var("SELECT MAX(relationship_id) FROM $related_links_table") + 1;
+
+                $insert($related_links_table, [
+                    'relationship_id' => $relationship_id,
+                    'link_id' => $link_id
+                ], ['%d', '%d']);
+
+                foreach ($related_link_ids as $related_link_id) {
+                    $exists = $wpdb->get_var($wpdb->prepare(
+                        "SELECT 1 FROM $related_links_table WHERE relationship_id = %d AND link_id = %d",
+                        $relationship_id,
+                        $related_link_id
+                    ));
+                    if (!$exists) {
+                        $insert($related_links_table, [
+                            'relationship_id' => $relationship_id,
+                            'link_id' => $related_link_id
+                        ], ['%d', '%d']);
+                    }
+                }
+            }
+
+            if ($wpdb->query('COMMIT') === false) {
+                $database_error();
+            }
+            $transaction_started = false;
+            $values = [];
+            echo '<div class="notice notice-success"><p>Link added successfully.</p></div>';
+        } catch (\RuntimeException $exception) {
+            if ($transaction_started) {
+                $wpdb->query('ROLLBACK');
+            }
+            $error = $exception->getMessage();
+        }
     }
 
     // Fetch data
@@ -867,16 +920,22 @@ function leanwi_lm_add_link_page() {
 
     echo '<div class="wrap">';
     echo '<h1>Add Link</h1>';
-    echo '<form method="POST">';
+    if ($error) {
+        echo '<div class="notice notice-error" role="alert"><p>' . esc_html($error) . '</p></div>';
+    }
+    echo '<p>Fields marked * are required. Select at least one Program Area.</p>';
+    echo '<div id="leanwi-lm-validation-error" class="notice notice-error" role="alert" hidden></div>';
+    echo '<form method="POST" id="leanwi-lm-add-link-form">';
+    wp_nonce_field('leanwi_lm_add_link', 'leanwi_lm_nonce');
 
     // Program Area
-    echo '<p><strong>Program Areas:</strong></p>';
+    echo '<p><strong>Program Areas *:</strong></p>';
     leanwi_lm_render_searchable_checkbox_picker(
         'program_areas',
         $areas,
         'area_id',
         'name',
-        [],
+        leanwi_lm_sanitize_id_array($values['program_areas'] ?? []),
         'program-areas-picker'
     );
 
@@ -887,25 +946,25 @@ function leanwi_lm_add_link_page() {
         $audiences,
         'audience_id',
         'name',
-        [],
+        leanwi_lm_sanitize_id_array($values['audiences'] ?? []),
         'audience-picker'
     );
 
-    echo '<p>Format: <select name="format_id"><option value="">None</option>';
+    echo '<p>Format *: <select name="format_id" required aria-label="Format"><option value="">Select a format</option>';
     foreach ($formats as $format) {
-        echo '<option value="' . esc_attr($format['format_id']) . '">' . esc_html($format['name']) . '</option>';
+        echo '<option value="' . esc_attr($format['format_id']) . '" ' . selected($values['format_id'] ?? '', $format['format_id'], false) . '>' . esc_html($format['name']) . '</option>';
     }
     echo '</select></p>';
 
-    echo '<p>Link URL: <input type="url" name="link_url" required style="width:600px;"></p>';
-    echo '<p>Title: <input type="text" name="title" required style="width:400px;"></p>';
-    echo '<p>Description: <input type="text" name="description" style="width:600px;"></p>';
-    echo '<p>Creation Date: <input type="date" name="creation_date" value="' . esc_attr($today_date) . '"></p>';
+    echo '<p>Link URL *: <input type="url" aria-label="Link URL" name="link_url" value="' . esc_attr($values['link_url'] ?? '') . '" required style="width:600px;"></p>';
+    echo '<p>Title *: <input type="text" aria-label="Title" name="title" value="' . esc_attr($values['title'] ?? '') . '" required style="width:400px;"></p>';
+    echo '<p>Description: <input type="text" name="description" value="' . esc_attr($values['description'] ?? '') . '" style="width:600px;"></p>';
+    echo '<p>Creation Date: <input type="date" name="creation_date" value="' . esc_attr($values['creation_date'] ?? $today_date) . '"></p>';
 
     // Revise Date input
-    echo '<p>Revise Date: <input type="date" name="revise_date">(Defaults to +6 Months from today if left blank)</p>';
+    echo '<p>Revise Date: <input type="date" name="revise_date" value="' . esc_attr($values['revise_date'] ?? '') . '">(Defaults to +6 Months from today if left blank)</p>';
 
-    echo '<p><label><input type="checkbox" name="is_featured_link"> Mark as Featured Link</label></p>';
+    echo '<p><label><input type="checkbox" name="is_featured_link" ' . checked(!empty($values['is_featured_link']), true, false) . '> Mark as Featured Link</label></p>';
 
     // Tags
     echo '<p><strong>Tags:</strong></p>';
@@ -914,7 +973,7 @@ function leanwi_lm_add_link_page() {
         $tags,
         'tag_id',
         'name',
-        [],
+        leanwi_lm_sanitize_id_array($values['tags'] ?? []),
         'tags-picker'
     );
 
@@ -937,7 +996,7 @@ function leanwi_lm_add_link_page() {
         if (!empty($link['relationship_id'])) {
             $label .= ' (Group ID: ' . intval($link['relationship_id']) . ')';
         }
-        echo '<option value="' . esc_attr($link['link_id']) . '" data-search="' . esc_attr($search_text) . '">' . $label . '</option>';
+        echo '<option value="' . esc_attr($link['link_id']) . '" ' . selected(in_array((int) $link['link_id'], leanwi_lm_sanitize_id_array($values['related_links'] ?? []), true), true, false) . ' data-search="' . esc_attr($search_text) . '">' . $label . '</option>';
     }
 
     echo '</select></div>';
@@ -947,6 +1006,42 @@ function leanwi_lm_add_link_page() {
     echo '</form>';
     echo '</div>';
 
+    ?>
+    <script>
+    (function() {
+        const form = document.getElementById('leanwi-lm-add-link-form');
+        const notice = document.getElementById('leanwi-lm-validation-error');
+        // Validate the checkbox group before the native required fields, in page order.
+        form.noValidate = true;
+        form.addEventListener('submit', function(event) {
+            let field;
+            let message;
+            if (!form.querySelector('input[name="program_areas[]"]:checked')) {
+                field = form.querySelector('#program-areas-picker .leanwi-lm-picker-filter');
+                message = 'Please select at least one Program Area.';
+            } else if (!form.elements.format_id.value) {
+                field = form.elements.format_id;
+                message = 'Please select a Format.';
+            } else if (!form.elements.link_url.value.trim() || !form.elements.link_url.validity.valid) {
+                field = form.elements.link_url;
+                message = 'Please enter a valid Link URL.';
+            } else if (!form.elements.title.value.trim()) {
+                field = form.elements.title;
+                message = 'Please enter a Title.';
+            }
+            if (field) {
+                event.preventDefault();
+                notice.textContent = message;
+                notice.hidden = false;
+                field.focus();
+            } else {
+                notice.hidden = true;
+                if (!form.reportValidity()) event.preventDefault();
+            }
+        });
+    }());
+    </script>
+    <?php
     // JavaScript Filter
     echo '<script>
         document.getElementById("link-filter").addEventListener("input", function() {
