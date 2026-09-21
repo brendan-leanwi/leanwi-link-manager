@@ -727,6 +727,51 @@ function leanwi_lm_render_picker_script_once() {
     <?php
 }
 
+function leanwi_lm_render_link_form_script() {
+    ?>
+    <script>
+    (function() {
+        const form = document.querySelector('form.leanwi-lm-link-form');
+        const notice = document.getElementById('leanwi-lm-validation-error');
+        // Validate the checkbox group before the native required fields, in page order.
+        document.getElementById('leanwi-lm-clear-related').addEventListener('click', function() {
+            const select = document.getElementById('related-links-select');
+            Array.from(select.options).forEach(function(option) { option.selected = false; });
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            document.getElementById('leanwi-lm-related-status').textContent = 'No related links selected. Save the form to apply this change.';
+        });
+        form.noValidate = true;
+        form.addEventListener('submit', function(event) {
+            let field;
+            let message;
+            if (!form.querySelector('input[name="program_areas[]"]:checked')) {
+                field = form.querySelector('#program-areas-picker .leanwi-lm-picker-filter');
+                message = 'Please select at least one Program Area.';
+            } else if (!form.elements.format_id.value) {
+                field = form.elements.format_id;
+                message = 'Please select a Format.';
+            } else if (!form.elements.link_url.value.trim() || !form.elements.link_url.validity.valid) {
+                field = form.elements.link_url;
+                message = 'Please enter a valid Link URL.';
+            } else if (!form.elements.title.value.trim()) {
+                field = form.elements.title;
+                message = 'Please enter a Title.';
+            }
+            if (field) {
+                event.preventDefault();
+                notice.textContent = message;
+                notice.hidden = false;
+                field.focus();
+            } else {
+                notice.hidden = true;
+                if (!form.reportValidity()) event.preventDefault();
+            }
+        });
+    }());
+    </script>
+    <?php
+}
+
 function leanwi_lm_add_link_page() {
     global $wpdb;
     $links_table = $wpdb->prefix . 'leanwi_lm_links';
@@ -925,7 +970,7 @@ function leanwi_lm_add_link_page() {
     }
     echo '<p>Fields marked * are required. Select at least one Program Area.</p>';
     echo '<div id="leanwi-lm-validation-error" class="notice notice-error" role="alert" hidden></div>';
-    echo '<form method="POST" id="leanwi-lm-add-link-form">';
+    echo '<form method="POST" id="leanwi-lm-add-link-form" class="leanwi-lm-link-form">';
     wp_nonce_field('leanwi_lm_add_link', 'leanwi_lm_nonce');
 
     // Program Area
@@ -1000,48 +1045,14 @@ function leanwi_lm_add_link_page() {
     }
 
     echo '</select></div>';
+    echo '<p><button type="button" id="leanwi-lm-clear-related" class="button">Deselect all</button> <span id="leanwi-lm-related-status" role="status" aria-live="polite"></span></p>';
 
     // Submit
     echo '<p><input type="submit" name="add_link" value="Add Link" class="button button-primary"></p>';
     echo '</form>';
     echo '</div>';
 
-    ?>
-    <script>
-    (function() {
-        const form = document.getElementById('leanwi-lm-add-link-form');
-        const notice = document.getElementById('leanwi-lm-validation-error');
-        // Validate the checkbox group before the native required fields, in page order.
-        form.noValidate = true;
-        form.addEventListener('submit', function(event) {
-            let field;
-            let message;
-            if (!form.querySelector('input[name="program_areas[]"]:checked')) {
-                field = form.querySelector('#program-areas-picker .leanwi-lm-picker-filter');
-                message = 'Please select at least one Program Area.';
-            } else if (!form.elements.format_id.value) {
-                field = form.elements.format_id;
-                message = 'Please select a Format.';
-            } else if (!form.elements.link_url.value.trim() || !form.elements.link_url.validity.valid) {
-                field = form.elements.link_url;
-                message = 'Please enter a valid Link URL.';
-            } else if (!form.elements.title.value.trim()) {
-                field = form.elements.title;
-                message = 'Please enter a Title.';
-            }
-            if (field) {
-                event.preventDefault();
-                notice.textContent = message;
-                notice.hidden = false;
-                field.focus();
-            } else {
-                notice.hidden = true;
-                if (!form.reportValidity()) event.preventDefault();
-            }
-        });
-    }());
-    </script>
-    <?php
+    leanwi_lm_render_link_form_script();
     // JavaScript Filter
     echo '<script>
         document.getElementById("link-filter").addEventListener("input", function() {
@@ -1086,158 +1097,207 @@ function leanwi_lm_edit_link_page() {
         return;
     }
 
+    $error = '';
+    $transaction_started = false;
     // Handle form submission
     if (isset($_POST['update_link'])) {
-        $program_area_ids = leanwi_lm_sanitize_id_array($_POST['program_areas'] ?? []);
-        $audience_ids = leanwi_lm_sanitize_id_array($_POST['audiences'] ?? []);
-        $tag_ids = leanwi_lm_sanitize_id_array($_POST['tags'] ?? []);
-
-        // Temporary backwards compatibility while area_id still exists on leanwi_lm_links.
-        $area_id = !empty($program_area_ids) ? $program_area_ids[0] : 0;
-
-        $format_id = isset($_POST['format_id']) ? intval($_POST['format_id']) : null;
-
-        $link_url = esc_url_raw(wp_unslash($_POST['link_url']));
-        $title = sanitize_text_field(wp_unslash($_POST['title']));
-        $description = sanitize_text_field(wp_unslash($_POST['description']));
-        $is_featured_link = isset($_POST['is_featured_link']) ? 1 : 0;
-
-        // Handle creation_date input
-        if (!empty($_POST['creation_date'])) {
-            $creation_date = sanitize_text_field($_POST['creation_date']) . ' 00:00:00';
-        } else {
-            $creation_date = current_time('mysql');
-        }
-
-        // Handle revise_date input
-        if (!empty($_POST['revise_date'])) {
-            // use the chosen date (force midnight for consistency)
-            $revise_date = sanitize_text_field($_POST['revise_date']) . ' 00:00:00';
-        } else {
-            // default: 6 months from current time
-            $revise_date = date(
-                'Y-m-d',
-                strtotime('+6 months', current_time('timestamp'))
-            ) . ' 00:00:00';
-        }
-
-        // Update the link record
-        $wpdb->update(
-            $links_table,
-            [
-                'area_id' => $area_id, // 0 for now for backwards compatibility until field is removed
-                'link_url' => $link_url,
-                'title' => $title,
-                'description' => $description,
-                'format_id' => $format_id,
-                'is_featured_link' => $is_featured_link,
-                'creation_date' => $creation_date,
-                'revise_date' => $revise_date
-            ],
-            ['link_id' => $link_id],
-            ['%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s'],
-            ['%d']
-        );
-
-        // Update program areas
-        $wpdb->delete($linkprogram_area_table, ['link_id' => $link_id], ['%d']);
-
-        foreach ($program_area_ids as $program_area_id) {
-            $wpdb->insert(
-                $linkprogram_area_table,
-                [
-                    'link_id' => $link_id,
-                    'area_id' => $program_area_id,
-                ],
-                ['%d', '%d']
-            );
-        }
-
-        // Update audiences
-        $wpdb->delete($linkaudience_table, ['link_id' => $link_id], ['%d']);
-
-        foreach ($audience_ids as $audience_id) {
-            $wpdb->insert(
-                $linkaudience_table,
-                [
-                    'link_id' => $link_id,
-                    'audience_id' => $audience_id,
-                ],
-                ['%d', '%d']
-            );
-        }
-
-        // Update tags
-        $wpdb->delete($linktags_table, ['link_id' => $link_id], ['%d']);
-
-        foreach ($tag_ids as $tag_id) {
-            $wpdb->insert(
-                $linktags_table,
-                [
-                    'link_id' => $link_id,
-                    'tag_id' => $tag_id,
-                ],
-                ['%d', '%d']
-            );
-        }
-
-        // Handle Related Links
-        $relationship_id = null;
-        $related_link_ids = !empty($_POST['related_links']) && is_array($_POST['related_links'])
-            ? array_map('intval', $_POST['related_links'])
-            : [];
-
-        if (!empty($related_link_ids)) {
-            // Get the relationship_id from the first selected related link
-            $existing_relationship = $wpdb->get_var(
-                $wpdb->prepare(
-                    "SELECT relationship_id FROM $related_links_table WHERE link_id = %d LIMIT 1",
-                    $related_link_ids[0]
-                )
-            );
-            if ($existing_relationship) {
-                $relationship_id = $existing_relationship;
+        try {
+            if (!current_user_can('manage_options') || !isset($_POST['leanwi_lm_nonce']) ||
+                !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['leanwi_lm_nonce'])), 'leanwi_lm_edit_link_' . $link_id)) {
+                throw new \RuntimeException('Your session has expired or you cannot edit links. Please reload this page and try again.');
             }
-        }
+            $program_area_ids = leanwi_lm_sanitize_id_array($_POST['program_areas'] ?? []);
+            $audience_ids = leanwi_lm_sanitize_id_array($_POST['audiences'] ?? []);
+            $tag_ids = leanwi_lm_sanitize_id_array($_POST['tags'] ?? []);
 
-        // If no existing relationship group but we need to create a relationship link
-        if (!$relationship_id  && !empty($related_link_ids)) {
-            $relationship_id = (int) $wpdb->get_var("SELECT MAX(relationship_id) FROM $related_links_table") + 1;
-        }
+            // Temporary backwards compatibility while area_id still exists on leanwi_lm_links.
+            $area_id = !empty($program_area_ids) ? $program_area_ids[0] : 0;
 
-        // Remove old relationship (if any) for this link
-        $wpdb->delete($related_links_table, ['link_id' => $link_id], ['%d']);
+            $format_id = isset($_POST['format_id']) ? intval($_POST['format_id']) : null;
 
-        if ($relationship_id) {
-            // Add current link to the group
-            error_log("Link ID being inserted into related_links: " . $link_id);
-            error_log("Using relationship_id: " . $relationship_id);
+            $link_url = esc_url_raw(wp_unslash($_POST['link_url'] ?? ''));
+            $title = sanitize_text_field(wp_unslash($_POST['title'] ?? ''));
+            $description = sanitize_text_field(wp_unslash($_POST['description'] ?? ''));
+            $is_featured_link = isset($_POST['is_featured_link']) ? 1 : 0;
 
-            $wpdb->insert($related_links_table, [
-                'relationship_id' => $relationship_id,
-                'link_id' => $link_id
-            ], ['%d', '%d']);
+            // Handle creation_date input
+            if (!empty($_POST['creation_date'])) {
+                $creation_date = sanitize_text_field($_POST['creation_date']) . ' 00:00:00';
+            } else {
+                $creation_date = current_time('mysql');
+            }
 
-            // Add selected links to the same group (skip if already there)
-            foreach ($related_link_ids as $related_link_id) {
-                $exists = $wpdb->get_var($wpdb->prepare(
-                    "SELECT 1 FROM $related_links_table WHERE relationship_id = %d AND link_id = %d",
-                    $relationship_id,
-                    $related_link_id
-                ));
-                if (!$exists) {
-                    $wpdb->insert($related_links_table, [
-                        'relationship_id' => $relationship_id,
-                        'link_id' => $related_link_id
-                    ], ['%d', '%d']);
+            // Handle revise_date input
+            if (!empty($_POST['revise_date'])) {
+                // use the chosen date (force midnight for consistency)
+                $revise_date = sanitize_text_field($_POST['revise_date']) . ' 00:00:00';
+            } else {
+                // default: 6 months from current time
+                $revise_date = date(
+                    'Y-m-d',
+                    strtotime('+6 months', current_time('timestamp'))
+                ) . ' 00:00:00';
+            }
+
+            if (empty($program_area_ids)) {
+                throw new \RuntimeException('Please select at least one Program Area.');
+            }
+            foreach ($program_area_ids as $id) {
+                if (!$wpdb->get_var($wpdb->prepare("SELECT area_id FROM $areas_table WHERE area_id = %d", $id))) {
+                    throw new \RuntimeException('Please select an available Program Area.');
                 }
             }
+            if (!$format_id || !$wpdb->get_var($wpdb->prepare("SELECT format_id FROM $formats_table WHERE format_id = %d", $format_id))) {
+                throw new \RuntimeException('Please select a Format.');
+            }
+            if (!$link_url || !filter_var($link_url, FILTER_VALIDATE_URL)) {
+                throw new \RuntimeException('Please enter a valid Link URL.');
+            }
+            if (trim($title) === '') {
+                throw new \RuntimeException('Please enter a Title.');
+            }
+
+            // Keep the link and all its associations together (plugin tables use InnoDB).
+            $database_error = function() use ($wpdb) {
+                error_log('LEANWI Link Manager edit link: ' . $wpdb->last_error);
+                throw new \RuntimeException('The link could not be saved because of a database error. Your entries have been kept; please try again or contact your administrator.');
+            };
+            if ($wpdb->query('START TRANSACTION') === false) {
+                $database_error();
+            }
+            $transaction_started = true;
+            // Zero affected rows is a successful unchanged update; only false is an error.
+            $write = function($method, ...$args) use ($wpdb, $database_error) {
+                if ($wpdb->$method(...$args) === false) {
+                    $database_error();
+                }
+            };
+
+            // Update the link record
+            $write('update', 
+                $links_table,
+                [
+                    'area_id' => $area_id, // First selected program area for backwards compatibility
+                    'link_url' => $link_url,
+                    'title' => $title,
+                    'description' => $description,
+                    'format_id' => $format_id,
+                    'is_featured_link' => $is_featured_link,
+                    'creation_date' => $creation_date,
+                    'revise_date' => $revise_date
+                ],
+                ['link_id' => $link_id],
+                ['%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s'],
+                ['%d']
+            );
+
+            // Update program areas
+            $write('delete', $linkprogram_area_table, ['link_id' => $link_id], ['%d']);
+
+            foreach ($program_area_ids as $program_area_id) {
+                $write('insert', 
+                    $linkprogram_area_table,
+                    [
+                        'link_id' => $link_id,
+                        'area_id' => $program_area_id,
+                    ],
+                    ['%d', '%d']
+                );
+            }
+
+            // Update audiences
+            $write('delete', $linkaudience_table, ['link_id' => $link_id], ['%d']);
+
+            foreach ($audience_ids as $audience_id) {
+                $write('insert', 
+                    $linkaudience_table,
+                    [
+                        'link_id' => $link_id,
+                        'audience_id' => $audience_id,
+                    ],
+                    ['%d', '%d']
+                );
+            }
+
+            // Update tags
+            $write('delete', $linktags_table, ['link_id' => $link_id], ['%d']);
+
+            foreach ($tag_ids as $tag_id) {
+                $write('insert', 
+                    $linktags_table,
+                    [
+                        'link_id' => $link_id,
+                        'tag_id' => $tag_id,
+                    ],
+                    ['%d', '%d']
+                );
+            }
+
+            // Handle Related Links
+            $relationship_id = null;
+            $related_link_ids = !empty($_POST['related_links']) && is_array($_POST['related_links'])
+                ? array_map('intval', $_POST['related_links'])
+                : [];
+
+            if (!empty($related_link_ids)) {
+                // Get the relationship_id from the first selected related link
+                $existing_relationship = $wpdb->get_var(
+                    $wpdb->prepare(
+                        "SELECT relationship_id FROM $related_links_table WHERE link_id = %d LIMIT 1",
+                        $related_link_ids[0]
+                    )
+                );
+                if ($existing_relationship) {
+                    $relationship_id = $existing_relationship;
+                }
+            }
+
+            // If no existing relationship group but we need to create a relationship link
+            if (!$relationship_id  && !empty($related_link_ids)) {
+                $relationship_id = (int) $wpdb->get_var("SELECT MAX(relationship_id) FROM $related_links_table") + 1;
+            }
+
+            // Remove old relationship (if any) for this link
+            $write('delete', $related_links_table, ['link_id' => $link_id], ['%d']);
+
+            if ($relationship_id) {
+                // Add current link to the group
+
+                $write('insert', $related_links_table, [
+                    'relationship_id' => $relationship_id,
+                    'link_id' => $link_id
+                ], ['%d', '%d']);
+
+                // Add selected links to the same group (skip if already there)
+                foreach ($related_link_ids as $related_link_id) {
+                    $exists = $wpdb->get_var($wpdb->prepare(
+                        "SELECT 1 FROM $related_links_table WHERE relationship_id = %d AND link_id = %d",
+                        $relationship_id,
+                        $related_link_id
+                    ));
+                    if (!$exists) {
+                        $write('insert', $related_links_table, [
+                            'relationship_id' => $relationship_id,
+                            'link_id' => $related_link_id
+                        ], ['%d', '%d']);
+                    }
+                }
+            }
+
+            if ($wpdb->query('COMMIT') === false) {
+                $database_error();
+            }
+            $transaction_started = false;
+            echo '<div class="notice notice-success"><p>Link updated successfully.</p></div>';
+
+            // Refresh data
+            $link = $wpdb->get_row($wpdb->prepare("SELECT * FROM $links_table WHERE link_id = %d", $link_id), ARRAY_A);
+        } catch (\RuntimeException $exception) {
+            if ($transaction_started) {
+                $wpdb->query('ROLLBACK');
+            }
+            $error = $exception->getMessage();
         }
-
-        echo '<div class="updated"><p>Link updated successfully.</p></div>';
-
-        // Refresh data
-        $link = $wpdb->get_row($wpdb->prepare("SELECT * FROM $links_table WHERE link_id = %d", $link_id), ARRAY_A);
     }
 
     // Fetch Program Areas
@@ -1291,13 +1351,32 @@ function leanwi_lm_edit_link_page() {
         ));
     }
 
+    // Preserve the attempted values, including deliberately cleared selections, after errors.
+    if ($error) {
+        $values = wp_unslash($_POST);
+        foreach (['link_url', 'title', 'description', 'creation_date', 'revise_date', 'format_id'] as $field) {
+            $link[$field] = $values[$field] ?? '';
+        }
+        $link['is_featured_link'] = isset($values['is_featured_link']) ? 1 : 0;
+        $current_program_areas = leanwi_lm_sanitize_id_array($values['program_areas'] ?? []);
+        $current_audiences = leanwi_lm_sanitize_id_array($values['audiences'] ?? []);
+        $current_tags = leanwi_lm_sanitize_id_array($values['tags'] ?? []);
+        $currently_related_link_ids = leanwi_lm_sanitize_id_array($values['related_links'] ?? []);
+    }
+
     // Display form
     echo '<div class="wrap">';
     echo '<h1>Edit Link</h1>';
-    echo '<form method="POST">';
+    if ($error) {
+        echo '<div class="notice notice-error" role="alert"><p>' . esc_html($error) . '</p></div>';
+    }
+    echo '<p>Fields marked * are required. Select at least one Program Area.</p>';
+    echo '<div id="leanwi-lm-validation-error" class="notice notice-error" role="alert" hidden></div>';
+    echo '<form method="POST" class="leanwi-lm-link-form">';
+    wp_nonce_field('leanwi_lm_edit_link_' . $link_id, 'leanwi_lm_nonce');
 
     // Program Area dropdown
-    echo '<p><strong>Program Areas:</strong></p>';
+    echo '<p><strong>Program Areas *:</strong></p>';
     leanwi_lm_render_searchable_checkbox_picker(
         'program_areas',
         $areas,
@@ -1319,8 +1398,8 @@ function leanwi_lm_edit_link_page() {
     );
 
     // Format dropdown
-    echo '<p>Format: <select name="format_id">';
-    echo '<option value="">None</option>';
+    echo '<p>Format *: <select name="format_id" required aria-label="Format">';
+    echo '<option value="">Select a format</option>';
     if ($formats) {
         foreach ($formats as $format) {
             echo '<option value="' . esc_attr($format['format_id']) . '" ' . selected($format['format_id'], $link['format_id'], false) . '>' . esc_html($format['name']) . '</option>';
@@ -1329,21 +1408,21 @@ function leanwi_lm_edit_link_page() {
     echo '</select></p>';
 
     // Link URL input
-    echo '<p>Link URL: <input type="url" name="link_url" value="' . esc_attr($link['link_url']) . '" required style="width:600px;"></p>';
+    echo '<p>Link URL *: <input type="url" aria-label="Link URL" name="link_url" value="' . esc_attr($link['link_url']) . '" required style="width:600px;"></p>';
 
     // Title input
-    echo '<p>Title: <input type="text" name="title" value="' . esc_attr($link['title']) . '" required style="width:400px;"></p>';
+    echo '<p>Title *: <input type="text" aria-label="Title" name="title" value="' . esc_attr($link['title']) . '" required style="width:400px;"></p>';
 
     // Description input
     echo '<p>Description: <input type="text" name="description" value="' . esc_attr($link['description']) . '" style="width:600px;"></p>';
 
     // Creation Date input
     $creation_date = (!empty($link['creation_date'])) ? date('Y-m-d', strtotime($link['creation_date'])) : date('Y-m-d');
-    echo '<p>Creation Date: <input type="date" name="creation_date" value="' . esc_attr($creation_date) . '"></p>';
+    echo '<p>Creation Date: <input type="date" name="creation_date" value="' . esc_attr($error ? $link['creation_date'] : $creation_date) . '"></p>';
 
     // Revise Date input
     $revise_date = (!empty($link['revise_date'])) ? date('Y-m-d', strtotime($link['revise_date'])) : date('Y-m-d');
-    echo '<p>Revise Date: <input type="date" name="revise_date" value="' . esc_attr($revise_date) . '">(Defaults to +6 Months from today if left blank)</p>';
+    echo '<p>Revise Date: <input type="date" name="revise_date" value="' . esc_attr($error ? $link['revise_date'] : $revise_date) . '">(Defaults to +6 Months from today if left blank)</p>';
 
     // Featured Link checkbox
     echo '<p><label><input type="checkbox" name="is_featured_link" ' . checked($link['is_featured_link'], 1, false) . '> Mark as Featured Link</label></p>';
@@ -1376,6 +1455,7 @@ function leanwi_lm_edit_link_page() {
         echo '<option value="' . esc_attr($link_row['link_id']) . '" ' . $selected . '>' . $label . '</option>';
     }
     echo '</select></div>';
+    echo '<p><button type="button" id="leanwi-lm-clear-related" class="button">Deselect all</button> <span id="leanwi-lm-related-status" role="status" aria-live="polite"></span></p>';
 
     // Filtering script
     echo <<<EOD
@@ -1398,6 +1478,7 @@ function leanwi_lm_edit_link_page() {
     echo '</form>';
     echo '</div>';
 
+    leanwi_lm_render_link_form_script();
     leanwi_lm_render_picker_script_once();
 }
 
