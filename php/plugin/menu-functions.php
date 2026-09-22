@@ -310,6 +310,97 @@ function leanwi_lm_main_page() {
  * Manage Links
  **************************************************************************************************/
 
+// Returns true when a confirmation screen replaces the links table.
+function leanwi_lm_handle_bulk_delete() {
+    global $wpdb;
+    if (!isset($_POST['leanwi_lm_bulk_submit']) && !isset($_POST['leanwi_lm_confirm_delete'])) {
+        return false;
+    }
+    $notice = function($message, $type = 'error') {
+        echo '<div class="notice notice-' . esc_attr($type) . '"><p>' . esc_html($message) . '</p></div>';
+    };
+    if (!current_user_can('manage_options') || !isset($_POST['leanwi_lm_bulk_nonce']) ||
+        !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['leanwi_lm_bulk_nonce'])), 'leanwi_lm_bulk_delete')) {
+        $notice('The deletion request could not be verified. Please reload the page and try again.');
+        return false;
+    }
+    if (!isset($_POST['leanwi_lm_confirm_delete'])) {
+        $position = $_POST['leanwi_lm_bulk_submit'] === 'bottom' ? 'bottom' : 'top';
+        if (($_POST['bulk_action_' . $position] ?? '') !== 'delete') {
+            $notice('Please choose Delete permanently from the Bulk actions menu.');
+            return false;
+        }
+    }
+    $ids = leanwi_lm_sanitize_id_array($_POST['link_ids'] ?? []);
+    if (!$ids) {
+        $notice('Please select at least one link to delete.');
+        return false;
+    }
+    $table = $wpdb->prefix . 'leanwi_lm_links';
+    $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+    $links = $wpdb->get_results($wpdb->prepare("SELECT link_id, title FROM $table WHERE link_id IN ($placeholders)", $ids), ARRAY_A);
+    if ($wpdb->last_error) {
+        $notice('The selected links could not be loaded. No links were deleted.');
+        return false;
+    }
+    if (!$links) {
+        $notice('The selected links no longer exist. No links were deleted.', 'warning');
+        return false;
+    }
+    if (!isset($_POST['leanwi_lm_confirm_delete'])) {
+        echo '<div class="wrap"><h1>Confirm bulk deletion</h1>';
+        echo '<p>Permanently delete these ' . count($links) . ' selected links? This cannot be undone.</p><ul>';
+        foreach ($links as $link) {
+            echo '<li>' . esc_html($link['title']) . '</li>';
+        }
+        echo '</ul><form method="POST" action="' . esc_url(remove_query_arg('delete_link')) . '">';
+        wp_nonce_field('leanwi_lm_bulk_delete', 'leanwi_lm_bulk_nonce');
+        foreach ($links as $link) {
+            echo '<input type="hidden" name="link_ids[]" value="' . esc_attr($link['link_id']) . '">';
+        }
+        echo '<button type="submit" name="leanwi_lm_confirm_delete" value="1" class="button button-primary">Delete permanently</button> ';
+        echo '<a class="button" href="' . esc_url(remove_query_arg('delete_link')) . '">Cancel</a></form></div>';
+        return true;
+    }
+
+    $started = false;
+    try {
+        if ($wpdb->query('START TRANSACTION') === false) {
+            throw new \RuntimeException('Could not start deletion.');
+        }
+        $started = true;
+        // Explicitly clean up associations, including on installations without foreign keys.
+        foreach (['leanwi_lm_linkprogram_area', 'leanwi_lm_linkaudience', 'leanwi_lm_linktags', 'leanwi_lm_related_links'] as $suffix) {
+            $association_table = $wpdb->prefix . $suffix;
+            if ($wpdb->query($wpdb->prepare("DELETE FROM $association_table WHERE link_id IN ($placeholders)", $ids)) === false) {
+                throw new \RuntimeException('Could not delete link associations.');
+            }
+        }
+        $deleted = $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE link_id IN ($placeholders)", $ids));
+        if ($deleted === false || $wpdb->query('COMMIT') === false) {
+            throw new \RuntimeException('Could not finish deletion.');
+        }
+        $started = false;
+        $notice(sprintf('%d link(s) deleted successfully.', $deleted), 'success');
+    } catch (\RuntimeException $exception) {
+        error_log('LEANWI Link Manager bulk delete: ' . $exception->getMessage() . ' ' . $wpdb->last_error);
+        if ($started) {
+            $wpdb->query('ROLLBACK');
+        }
+        $notice('The selected links could not be deleted because of a database error. Please try again or contact your administrator.');
+    }
+    return false;
+}
+
+function leanwi_lm_render_bulk_actions($position) {
+    echo '<div class="tablenav ' . esc_attr($position) . '"><div class="alignleft actions bulkactions">';
+    echo '<label class="screen-reader-text" for="leanwi-lm-bulk-' . esc_attr($position) . '">Bulk actions</label>';
+    echo '<select id="leanwi-lm-bulk-' . esc_attr($position) . '" name="bulk_action_' . esc_attr($position) . '">';
+    echo '<option value="">Bulk actions</option><option value="delete">Delete permanently</option></select> ';
+    echo '<button type="submit" name="leanwi_lm_bulk_submit" value="' . esc_attr($position) . '" class="button action">Apply</button>';
+    echo '</div></div>';
+}
+
 // Function to display the table of links
 function leanwi_lm_manager_links_page() {
     global $wpdb;
@@ -322,8 +413,15 @@ function leanwi_lm_manager_links_page() {
     $audience_table = $wpdb->prefix . 'leanwi_lm_audience';
     $linkaudience_table = $wpdb->prefix . 'leanwi_lm_linkaudience';
 
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+    if (leanwi_lm_handle_bulk_delete()) {
+        return;
+    }
+
     // Handle deletion if delete_link is set
-    if (isset($_GET['delete_link'])) {
+    if (isset($_GET['delete_link']) && empty($_POST)) {
         $link_id = intval($_GET['delete_link']);
         $wpdb->delete($links_table, ['link_id' => $link_id], ['%d']);
         echo '<div class="updated"><p>Link deleted successfully.</p></div>';
@@ -588,8 +686,12 @@ function leanwi_lm_manager_links_page() {
     if (empty($links)) {
         echo '<p>No links found for the selected filters.</p>';
     } else {
+        echo '<form method="POST" id="leanwi-lm-bulk-form" action="' . esc_url(remove_query_arg('delete_link')) . '">';
+        wp_nonce_field('leanwi_lm_bulk_delete', 'leanwi_lm_bulk_nonce');
+        leanwi_lm_render_bulk_actions('top');
         echo '<table class="wp-list-table widefat striped">';
         echo '<thead><tr>';
+        echo '<td class="manage-column column-cb check-column"><input type="checkbox" class="leanwi-lm-select-all" aria-label="Select all displayed links"></td>';
         echo '<th>Title</th>';
         echo '<th>URL</th>';
         echo '<th>Program Area</th>';
@@ -601,6 +703,7 @@ function leanwi_lm_manager_links_page() {
 
         foreach ($links as $link) {
             echo '<tr>';
+            echo '<th scope="row" class="check-column"><input type="checkbox" name="link_ids[]" value="' . esc_attr($link['link_id']) . '" aria-label="' . esc_attr('Select ' . $link['title']) . '"></th>';
             echo '<td>' . esc_html($link['title']) . '</td>';
             echo '<td><a href="' . esc_url($link['link_url']) . '" target="_blank">' . esc_html($link['link_url']) . '</a></td>';
             echo '<td>' . esc_html($link['area_name']) . '</td>';
@@ -614,7 +717,10 @@ function leanwi_lm_manager_links_page() {
             echo '</tr>';
         }
 
-        echo '</tbody></table>';
+        echo '</tbody><tfoot><tr><td class="manage-column column-cb check-column"><input type="checkbox" class="leanwi-lm-select-all" aria-label="Select all displayed links"></td>';
+        echo '<th>Title</th><th>URL</th><th>Program Area</th><th>Format</th><th>Creation Date</th><th>Featured</th><th>Actions</th></tr></tfoot></table>';
+        leanwi_lm_render_bulk_actions('bottom');
+        echo '</form>';
     }
     echo '<a style="margin-top: 20px" href="' . admin_url('admin.php?page=leanwi-lm-add-link') . '" class="button button-primary">Add New Link</a>';
     echo '</div>';
@@ -623,6 +729,24 @@ function leanwi_lm_manager_links_page() {
     ?>
     <script type="text/javascript">
         document.addEventListener('DOMContentLoaded', function() {
+            const bulkForm = document.getElementById('leanwi-lm-bulk-form');
+            if (bulkForm) {
+                const rows = Array.from(bulkForm.querySelectorAll('input[name="link_ids[]"]'));
+                const selectAll = bulkForm.querySelectorAll('.leanwi-lm-select-all');
+                function syncSelection() {
+                    const count = rows.filter(row => row.checked).length;
+                    selectAll.forEach(control => {
+                        control.checked = rows.length > 0 && count === rows.length;
+                        control.indeterminate = count > 0 && count < rows.length;
+                    });
+                }
+                selectAll.forEach(control => control.addEventListener('change', function() {
+                    rows.forEach(row => { row.checked = this.checked; });
+                    syncSelection();
+                }));
+                rows.forEach(row => row.addEventListener('change', syncSelection));
+                syncSelection();
+            }
             //Confirm Delete links
             const deleteLinks = document.querySelectorAll('.delete-link');
             deleteLinks.forEach(function(link) {
